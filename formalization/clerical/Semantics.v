@@ -4,10 +4,14 @@ Require Coq.Program.Equality.
 Require Import Clerical.
 Require Import Typing.
 
+
+Inductive Real. (* temp for datatype real *)
+
 Definition sem_datatype (τ : datatype) : Type :=
   match τ with
   | DInteger => Z
   | DBoolean => bool
+  | DReal => Real
   end.
 
 Definition sem_result_type (ρ : result_type) :=
@@ -16,43 +20,27 @@ Definition sem_result_type (ρ : result_type) :=
   | RCommand => unit
   end.
 
-Fixpoint sem_list_datatype (lst : list datatype) : Type :=
-  match lst with
-  | nil => unit
-  | cons t lst => sem_datatype t * sem_list_datatype lst
+Fixpoint sem_context_rw (Γ : context) : Type :=
+  match Γ with
+  | cons v Γ' => let (a,b,c) := v in
+                 if c then (sem_datatype b) * sem_context_rw Γ'
+                 else sem_context_rw Γ'
+  | _ => unit
   end.
 
-Fixpoint update
-  {τ : datatype} {Θ : list datatype} (k : nat) (v : sem_datatype τ) (γ : sem_list_datatype Θ)
-  (i : is_writable Θ k τ) {struct i} : sem_list_datatype Θ.
-Proof.
-  induction i.
-
-  (* is_writable_0 *)
-  {
-    exact (v, snd γ).
-  }
-
-  (* is_writable_S *)
-  {
-    split.
-    - exact (fst γ).
-    - apply (IHi v (snd γ)).
-  }
-Defined.
-
-Print update.
-
-Fixpoint sem_list_list_datatype (lst : list (list datatype)) : Type :=
-  match lst with
-  | nil => unit
-  | cons l lst => sem_list_datatype l * sem_list_list_datatype lst
+Fixpoint sem_context_ro (Γ : context) : Type :=
+  match Γ with
+  | cons v Γ' => let (a,b,c) := v in
+                 if c then sem_context_ro Γ'
+                 else  (sem_datatype b) * sem_context_ro Γ'
+  | _ => unit
   end.
 
-Definition sem_ctx (Γ : ctx) : Type :=
-  (sem_list_datatype (ctx_rw Γ)) * (sem_list_list_datatype (ctx_ro Γ)).
+Definition sem_context (Γ : context) : Type :=
+  (sem_context_rw Γ * sem_context_ro Γ).
 
-Definition sem_rw (Γ : ctx) := sem_list_datatype (ctx_rw Γ).
+
+
 
 (* The monad of computations. *)
 
@@ -180,8 +168,8 @@ Axiom magic_axiom : forall A : Type, A. (* every type is inhabited, use with car
 Ltac unfinished := now apply magic_axiom.
 
 (* The meaning of a well-typed program in relational form. *)
-Fixpoint sem_comp (Γ : ctx) (c : comp) (ρ : result_type) (D : has_type Γ c ρ):
-  sem_ctx Γ -> M (sem_rw Γ * sem_result_type ρ).
+Fixpoint sem_comp (Γ : context) (c : comp) (ρ : result_type) (D : has_type Γ c ρ):
+  sem_context Γ -> M (sem_context_rw Γ * sem_result_type ρ).
 
 Proof.
   intro γ.
@@ -189,33 +177,7 @@ Proof.
 
   (* has_type_Var_0 *)
   {
-    apply singleton.
-    split.
-    - exact (fst γ).
-    - exact (fst (fst γ)).
-  }
-
-  (* has_type_Var_S *)
-  {
-    pose (u := IHD ((snd (fst γ)), snd γ)).
-    apply (bind_M u).
-    intros [δ s].
-    apply singleton.
-    split.
-    - split.
-      + exact (fst (fst γ)).
-      + exact (snd (fst γ)).
-    - exact s.
-  }
-
-  (* has_type_Var_empty_rw *)
-  {
-    unfold sem_rw, readonly ; simpl.
-    unfold sem_rw, readonly in IHD ; simpl in IHD.
-    apply (bind_M (IHD (snd γ))).
-    intros [γ1 t].
-    apply singleton.
-    exact (tt, t).
+    unfinished.
   }
 
   (* has_type_True *)
