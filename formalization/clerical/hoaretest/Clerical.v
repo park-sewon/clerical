@@ -10,19 +10,21 @@ Require Import String.
 
 (* Datatypes *)
 Inductive datatype :=
+  | DUnit
   | DBoolean
   | DInteger
   | DReal.
 
 Definition eq_type (τ₁ τ₂ : datatype) : bool :=
   match τ₁, τ₂ with
-  | DInteger, DInteger => true
+  | DUnit, DUnit => true
   | DBoolean, DBoolean => true
+  | DInteger, DInteger => true
   | DReal, DReal => true
   | _, _ => false
   end.
 
-(* Primitive oeprators  | todo: separate the operators by their operands' types? *)
+(* Primitive operators  | todo: separate the operators by their operands' types? *)
 Inductive binary_op :=
   | OpPlusInt | OpMultInt | OpSubInt
   | OpPlusReal | OpMultReal | OpSubReal | OpDivReal
@@ -66,7 +68,8 @@ Fixpoint unary_op_type (op : unary_op) :option datatype -> option datatype :=
 Inductive variable := Id : string -> variable.
 
 
-(* Context *)
+(* Context
+   Note: 1) it would be nice if, like a set, the context is represented as a quotient type *)
 Definition typed_variable : Type := (variable * datatype).
 
 Definition context : Type := (list typed_variable * list typed_variable).
@@ -102,6 +105,12 @@ Inductive in_context_t : context -> typed_variable -> Type :=
 | triv_t₂ : forall Γ₁ Γ₂ v w, in_context_t (Γ₁, Γ₂) v -> in_context_t (Γ₁,cons w Γ₂) v
 | base_t₁ : forall Γ₁ Γ₂ v w, eq_name_type_v v w = true -> in_context_t (cons w Γ₁, Γ₂) v
 | base_t₂ : forall Γ₁ Γ₂ v w, eq_name_type_v v w = true -> in_context_t (Γ₁, cons w Γ₂) v.
+
+Inductive not_in_context_t : context -> typed_variable -> Type :=
+| n_triv_t₁ : forall Γ₁ Γ₂ v w, not_in_context_t (Γ₁, Γ₂) v -> eq_name_type_v v w = false -> not_in_context_t (cons w Γ₁, Γ₂) v
+| n_triv_t₂ : forall Γ₁ Γ₂ v w, not_in_context_t (Γ₁, Γ₂) v -> eq_name_type_v v w = false -> not_in_context_t (Γ₁,cons w  Γ₂) v
+| n_base_t : forall v, not_in_context_t empty_context v.
+
 
 Definition in_context_trw : context -> typed_variable -> bool -> Type :=
   fun Γ v b => if b then in_context_t (fst Γ, nil) v else in_context_t (nil, snd Γ) v.
@@ -166,8 +175,7 @@ Inductive comp :=
 
 (* Results of computations *)
 Inductive result_type :=
-  | RData : datatype -> result_type
-  | RCommand.
+  | RData : datatype -> result_type.
 
 Fixpoint rev_type (τ : option result_type) : option datatype :=
   match τ with
@@ -177,13 +185,14 @@ Fixpoint rev_type (τ : option result_type) : option datatype :=
 
 Fixpoint same_result_type (a b : result_type) : bool :=
   match a, b with
+  | RData DUnit, RData DUnit => true
   | RData DBoolean, RData DBoolean => true
   | RData DInteger, RData DInteger => true
   | RData DReal, RData DReal => true
-  | RCommand, RCommand => true
   | _, _ => false
   end.
 
+Definition RCommand := RData DUnit.
 Definition RBoolean := RData DBoolean.
 Definition RInteger := RData DInteger.
 Definition RReal := RData DReal.

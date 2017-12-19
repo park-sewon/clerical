@@ -64,82 +64,96 @@ Inductive has_type : context -> comp -> result_type -> Type :=
    leads to None. *)
 Fixpoint judge_type (Γ : context) (c : comp) : option result_type :=
   match c with
-  | Var s => match locate Γ s with
-             | None => None
-             | Some v => Some (RData (type_v (fst v)))
-             end 
+  | Var s =>
+    match locate Γ s with
+    | None => None
+    | Some v => Some (RData (type_v (fst v)))
+    end
+               
   | Boolean b => Some RBoolean
   | Integer z => Some RInteger
-  | BinOp op a b => let τ :=  binary_op_type op (rev_type (judge_type (readonly Γ) a))
-                                                    (rev_type (judge_type (readonly Γ) b)) in
-                    match τ with
-                    | Some τ => Some ( RData τ )
-                    | None => None
-                    end
-  | UniOp op a => let τ := (unary_op_type op (rev_type (judge_type (readonly Γ) a))) in
-                  match τ with
-                  | Some τ => Some ( RData τ )
-                  | None => None
-                  end
+                      
+  | BinOp op a b =>
+    let τ :=  binary_op_type op (rev_type (judge_type (readonly Γ) a))
+                             (rev_type (judge_type (readonly Γ) b)) in
+    match τ with
+    | Some τ => Some ( RData τ )
+    | None => None
+    end
+      
+  | UniOp op a =>
+    let τ := (unary_op_type op (rev_type (judge_type (readonly Γ) a))) in
+    match τ with
+    | Some τ => Some ( RData τ )
+    | None => None
+    end
+
   | Skip => Some RCommand
-  | Sequence c1 c2 => let τ := (judge_type Γ c1) in
-                      match τ with
-                      | Some τ => match τ with
-                                  | RCommand => judge_type Γ c2
-                                  | _ => None
-                                  end
-                      | _ => None
-                      end
-  | Case b1 c1 b2 c2 => let Γ' := readonly Γ in
-                        let τ₁ := judge_type Γ' b1 in
-                        let τ₂ := judge_type Γ' b2 in
-                        match τ₁  with
-                        | Some RBoolean =>
-                          match τ₂ with
-                            | Some RBoolean => let ρ₁ := judge_type Γ c1 in
-                                                          let ρ₂ := judge_type Γ c2 in
-                                                          match ρ₁, ρ₂ with
-                                                          | Some ρ₁', Some ρ₂' => if (same_result_type ρ₁' ρ₂') then ρ₁ else None
-                                                          | _, _ => None
-                                                          end
-                            | _ => None
-                          end
-                            
-                        | _ => None
-                        end
-  | While b c => let τ := judge_type (readonly Γ) b in
-                 match τ with
-                 | Some RBoolean => let  ρ := judge_type Γ c in
-                                    match ρ with
-                                    | Some Rcommand => Some Rcommand
-                                    | _ => None
-                                    end
-                 | _ => None
-                 end
-                   
-  | Newvar s e c => if (is_in_context Γ s)
-                    then None
-                    else
-                      let τ := judge_type (readonly Γ) e in
-                      match τ with
-                      | Some τ => match τ with
-                                  | RData τ => judge_type (add_rw Γ s τ) c
-                                  | _ => None
-                                  end
-                      | _ => None
-                      end
-  | Assign s e => let v := locate Γ s in
-                  match v with
-                  | Some v => let c := (snd v) in
-                              if c then (
-                                  let ρ := judge_type (readonly Γ) e in
-                                  match ρ with
-                                  | Some ρ => if (same_result_type ρ (RData (type_v (fst v)))) then Some RCommand else None
-                                  | _ => None
-                                  end)
-                              else None
-                  | _ => None
+
+  | Sequence c1 c2 =>
+    let τ := (judge_type Γ c1) in
+    match τ with
+    | Some τ => match τ with
+                | RCommand => judge_type Γ c2
+                end
+    | _ => None
+    end
+
+  | Case b1 c1 b2 c2 =>
+    let Γ' := readonly Γ in
+    let τ₁ := judge_type Γ' b1 in
+    let τ₂ := judge_type Γ' b2 in
+    match τ₁  with
+    | Some RBoolean =>
+      match τ₂ with
+      | Some RBoolean => let ρ₁ := judge_type Γ c1 in
+                         let ρ₂ := judge_type Γ c2 in
+                         match ρ₁, ρ₂ with
+                         | Some ρ₁', Some ρ₂' => if (same_result_type ρ₁' ρ₂') then ρ₁ else None
+                         | _, _ => None
+                         end
+      | _ => None
+      end
+        
+    | _ => None
+    end
+
+  | While b c =>
+    let τ := judge_type (readonly Γ) b in
+    match τ with
+    | Some RBoolean => let  ρ := judge_type Γ c in
+                       match ρ with
+                       | Some Rcommand => Some Rcommand
+                       | _ => None
+                       end
+    | _ => None
+    end
+      
+  | Newvar s e c =>
+    if (is_in_context Γ s)
+    then None
+    else
+      let τ := judge_type (readonly Γ) e in
+      match τ with
+      | Some τ => match τ with
+                  | RData τ => judge_type (add_rw Γ s τ) c
                   end
+      | _ => None
+      end
+
+  | Assign s e =>
+    let v := locate Γ s in
+    match v with
+    | Some v => let c := (snd v) in
+                if c then (
+                    let ρ := judge_type (readonly Γ) e in
+                    match ρ with
+                    | Some ρ => if (same_result_type ρ (RData (type_v (fst v)))) then Some RCommand else None
+                    | _ => None
+                    end)
+                else None
+    | _ => None
+    end
   end.
 
 (* prove that the type judgement function is correct upto the inductive definition has_type *)
@@ -197,7 +211,7 @@ Section type_examples.
 
   
 
-  Eval compute in judge_type empty_context Example3.
+  Eval compute in judge_type empty_context Example1.
 
 End type_examples.
 

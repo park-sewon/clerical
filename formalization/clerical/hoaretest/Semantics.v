@@ -4,24 +4,23 @@ Require Coq.Program.Equality.
 Require Import Clerical.
 Require Import Typing.
 
+(* temp for datatype real *)
 
-Inductive Real. (* temp for datatype real *)
-
-Definition sem_datatype (τ : datatype) : Type :=
+Definition sem_datatype (τ : datatype) : Set :=
   match τ with
-  | DInteger => Z
+  | DUnit => unit
   | DBoolean => bool
-  | DReal => Real
+  | DInteger => Z
+  | DReal => Z
   end.
 
 Definition sem_result_type (ρ : result_type) :=
   match ρ with
   | RData τ => sem_datatype τ
-  | RCommand => unit
   end.
 
 (* sem of context should be a list of (sem) typed variables *)
-Definition sorted_variable : Type := variable * Type.
+Definition sorted_variable : Type := variable * Set.
 Definition context_meaning : Type := list sorted_variable * list sorted_variable.
 
 Fixpoint sem_context_aux (Γ : list typed_variable) :  list sorted_variable :=
