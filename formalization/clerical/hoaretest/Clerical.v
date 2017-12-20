@@ -66,98 +66,81 @@ Fixpoint unary_op_type (op : unary_op) :option datatype -> option datatype :=
 
 (* Variable and Context *)
 Inductive variable := Id : string -> variable.
-
-
-(* Context
-   Note: 1) it would be nice if, like a set, the context is represented as a quotient type *)
 Definition typed_variable : Type := (variable * datatype).
-
-Definition context : Type := (list typed_variable * list typed_variable).
-             
 Definition name_v (v : typed_variable) : string := let v := fst v in match v with Id s => s end.
 Definition type_v (v : typed_variable) : datatype := snd v.
 
+Definition context : Type := list (typed_variable * bool).
+             
 
-Definition eq_name_v (v₁ v₂ : typed_variable) : bool :=
-  let v₁ := fst v₁ in let v₂ := fst v₂ in match v₁, v₂ with Id s₁, Id s₂ => if string_dec s₁ s₂ then true else false end.
 
-Definition eq_name_v_s (v₁ : typed_variable) (s : string) : bool :=
+Definition eq_tv_tv_name (v₁ v₂ : typed_variable) : bool :=
+  let v₁ := fst v₁ in let v₂ := fst v₂ in
+                      match v₁, v₂ with
+                      | Id s₁, Id s₂ => if string_dec s₁ s₂ then true else false
+                      end.
+
+Definition eq_tv_str (v₁ : typed_variable) (s : string) : bool :=
   let v₁ := fst v₁ in  match v₁ with Id s₁ => if string_dec s₁ s then true else false end.
 
-Definition eq_name_type_v (v₁ v₂ : typed_variable) : bool :=
-  if eq_name_v v₁ v₂ then eq_type (snd v₁) (snd v₂) else false.
-
-Definition variable_same (v₁ v₂ : typed_variable) : bool :=
-  if eq_name_v v₁ v₂ then if eq_type (type_v v₁) (type_v v₂) then true else false else false.
-
-Definition empty_context : context := (nil, nil).
-
-Definition add_rw (Γ : context) (s : string) (τ : datatype) := (cons (Id s, τ) (fst Γ), snd Γ).
-
-Inductive in_context : context -> string -> Type :=
-| triv₁ : forall Γ₁ Γ₂ s v, in_context (Γ₁, Γ₂) s -> in_context (cons v Γ₁, Γ₂) s
-| triv₂ : forall Γ₁ Γ₂ s v, in_context (Γ₁, Γ₂) s -> in_context (Γ₁,cons v Γ₂) s
-| base₁ : forall Γ₁ Γ₂ s v, eq_name_v_s v s = true -> in_context (cons v Γ₁, Γ₂) s
-| base₂ : forall Γ₁ Γ₂ s v, eq_name_v_s v s = true -> in_context (Γ₁, cons v Γ₂) s.
-
-Inductive in_context_t : context -> typed_variable -> Type :=
-| triv_t₁ : forall Γ₁ Γ₂ v w, in_context_t (Γ₁, Γ₂) v -> in_context_t (cons w Γ₁, Γ₂) v
-| triv_t₂ : forall Γ₁ Γ₂ v w, in_context_t (Γ₁, Γ₂) v -> in_context_t (Γ₁,cons w Γ₂) v
-| base_t₁ : forall Γ₁ Γ₂ v w, eq_name_type_v v w = true -> in_context_t (cons w Γ₁, Γ₂) v
-| base_t₂ : forall Γ₁ Γ₂ v w, eq_name_type_v v w = true -> in_context_t (Γ₁, cons w Γ₂) v.
-
-Inductive not_in_context_t : context -> typed_variable -> Type :=
-| n_triv_t₁ : forall Γ₁ Γ₂ v w, not_in_context_t (Γ₁, Γ₂) v -> eq_name_type_v v w = false -> not_in_context_t (cons w Γ₁, Γ₂) v
-| n_triv_t₂ : forall Γ₁ Γ₂ v w, not_in_context_t (Γ₁, Γ₂) v -> eq_name_type_v v w = false -> not_in_context_t (Γ₁,cons w  Γ₂) v
-| n_base_t : forall v, not_in_context_t empty_context v.
+Definition eq_tv_tv (v₁ v₂ : typed_variable) : bool :=
+  if eq_tv_tv_name v₁ v₂ then eq_type (snd v₁) (snd v₂) else false.
 
 
-Definition in_context_trw : context -> typed_variable -> bool -> Type :=
-  fun Γ v b => if b then in_context_t (fst Γ, nil) v else in_context_t (nil, snd Γ) v.
+Definition empty_context : context := nil.
 
-Fixpoint readonly_aux (A : Type) (Γ₁ Γ₂ : list A) : list A :=
-  match Γ₁ with
-  | nil => Γ₂
-  | cons v Γ' => readonly_aux A Γ' (cons v Γ₂)
+Definition add_rw (Γ : context) (s : string) (τ : datatype) := ((Id s, τ), true) ::  Γ.
+
+Inductive ctx_mem_str : context -> string -> Type :=
+| triv : forall Γ s v b, ctx_mem_str Γ s -> ctx_mem_str ((v, b) :: Γ) s
+| base : forall Γ s v b, eq_tv_str v s = true -> ctx_mem_str ((v, b) :: Γ) s.
+
+Inductive ctx_mem_str_rw : context -> string -> Type :=
+| triv_rw : forall Γ s v b, ctx_mem_str_rw Γ s -> ctx_mem_str_rw ((v, b) :: Γ) s
+| base_rw : forall Γ s v, eq_tv_str v s = true -> ctx_mem_str_rw ((v, true) :: Γ) s.
+
+Inductive ctx_mem_tv : context -> typed_variable -> Type :=
+| triv_t : forall Γ v w b, ctx_mem_tv Γ v -> ctx_mem_tv ((w, b) :: Γ) v
+| base_t : forall Γ v w b, eq_tv_tv v w = true -> ctx_mem_tv ((w, b) :: Γ) v.
+
+Inductive ctx_mem_tv_rw : context -> typed_variable -> Type :=
+| triv_t_rw : forall Γ v w b, ctx_mem_tv_rw Γ v -> ctx_mem_tv_rw ((w, b) :: Γ) v
+| base_t_rw : forall Γ v w, eq_tv_tv v w = true -> ctx_mem_tv_rw ((w, true) :: Γ) v.
+
+Inductive not_ctx_mem_tv : context -> typed_variable -> Type :=
+| n_triv_t : forall Γ v w b, not_ctx_mem_tv Γ v -> eq_tv_tv v w = false -> not_ctx_mem_tv ((w, b) :: Γ) v
+| n_base_t : forall v, not_ctx_mem_tv empty_context v.
+
+Fixpoint readonly (Γ : context) : context :=
+  match Γ with
+  | (v, b) :: Γ' => (v, false) :: (readonly Γ')
+  | nil => nil
   end.
 
-Definition readonly (Γ : context) : context := (nil, readonly_aux typed_variable (fst Γ) (snd Γ)).
-
-Fixpoint is_in_context_aux  (Γ : list typed_variable) (s : string) : bool :=
+Fixpoint ctx_mem_str_fun (Γ : context) (s : string) : bool :=
   match Γ with
+  | (v, b) :: Γ' => if (eq_tv_str v s) then true else (ctx_mem_str_fun Γ' s)
   | nil => false
-  | cons v Γ => if (eq_name_v_s v s) then true else is_in_context_aux Γ s
   end.
 
-Definition is_in_context (Γ : context) (s : string) : bool :=
-  if (is_in_context_aux (fst Γ) s) then if (is_in_context_aux (snd Γ) s) then true else false else false.
-
-Definition is_in_context_rw (Γ : context) (s : string) : bool :=
-  if (is_in_context_aux (fst Γ) s) then true else false.
-
-Definition is_in_context_ro (Γ : context) (s : string) : bool :=
-  if (is_in_context_aux (snd Γ) s) then true else false.
-
-Fixpoint locate_aux (Γ : list typed_variable) (s : string) : option typed_variable :=
+Fixpoint ctx_mem_str_fun_rw (Γ : context) (s : string) : bool :=
   match Γ with
+  | (v, b) :: Γ' => if (eq_tv_str v s) then  b else (ctx_mem_str_fun_rw Γ' s)
+  | nil => false
+  end.
+
+Fixpoint ctx_mem_str_fun_ro (Γ : context) (s : string) : bool :=
+  match Γ with
+  | (v, b) :: Γ' => if (eq_tv_str v s) then negb b else (ctx_mem_str_fun_ro Γ' s)
+  | nil => false
+  end.
+
+Fixpoint ctx_locate_str_fun (Γ : context) (s : string) : option (typed_variable * bool) :=
+  match Γ with
+  | (v, b) :: Γ' => if (eq_tv_str v s) then Some (v, b) else (ctx_locate_str_fun Γ' s)
   | nil => None
-  | cons v Γ => if eq_name_v_s v s then Some v else locate_aux Γ s
   end.
-
-Definition locate (Γ : context) (s : string) : option (typed_variable * bool) :=
-  let v := locate_aux (fst Γ) s in
-  match v with
-  | None => let v := locate_aux (snd Γ) s in
-            match v with
-            | None => None
-            | Some v => Some (v, false)
-            end
-  | Some v => Some (v, true)
-  end.
-    
-            
-    
-
+                
 (* Computations *)
 Inductive comp :=
   | Var : string -> comp
@@ -171,32 +154,6 @@ Inductive comp :=
   | While : comp -> comp -> comp
   | Newvar : string -> comp -> comp -> comp
   | Assign : string -> comp -> comp.
-
-
-(* Results of computations *)
-Inductive result_type :=
-  | RData : datatype -> result_type.
-
-Fixpoint rev_type (τ : option result_type) : option datatype :=
-  match τ with
-  | Some (RData τ) => Some τ
-  | _ => None
-  end.
-
-Fixpoint same_result_type (a b : result_type) : bool :=
-  match a, b with
-  | RData DUnit, RData DUnit => true
-  | RData DBoolean, RData DBoolean => true
-  | RData DInteger, RData DInteger => true
-  | RData DReal, RData DReal => true
-  | _, _ => false
-  end.
-
-Definition RCommand := RData DUnit.
-Definition RBoolean := RData DBoolean.
-Definition RInteger := RData DInteger.
-Definition RReal := RData DReal.
-
 
 (* Notations for writing clerical programs. *)
 

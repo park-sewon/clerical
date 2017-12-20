@@ -20,19 +20,35 @@ Proof.
   rewrite<- p;  exact a.
 Qed.
 
+Lemma split_pair : forall {A B : Type} {a c : A} {b d : B}, (a,b) = (c,d) -> a = c /\ b = d.
+Proof.
+  intros.
+  trivial.
+  inversion H.
+  constructor; trivial; trivial.
+Qed.
 
+Lemma make_pair : forall A B {a c : A} {b d : B}, a = c -> b = d -> (a,b) = (c,d).
+Proof.
+  intros.
+  rewrite H; rewrite H0; trivial.
+Qed.
 
-Definition add_rw_ctx (Γ : context) (v : typed_variable) : context := (v :: fst Γ, snd Γ).
-Definition add_ro_ctx (Γ : context) (v : typed_variable) : context := (fst Γ, v :: snd Γ).
+Lemma list_eq_destruct : forall {A : Type} {a b : A} {c d : list A},
+    a :: c = b :: d -> a = b /\ c = d.
+Proof.
+  intros.
+  Admitted.
+
+Definition add_rw_ctx (Γ : context) (v : typed_variable) : context := (v, true) :: Γ.
+Definition add_ro_ctx (Γ : context) (v : typed_variable) : context := (v, false) :: Γ.
 
 
 (* State inductively defined via a context.
    val is a function that returns value of v within Γ *)
 Inductive state (Γ : context) : Type :=
-| emty_state : Γ = empty_context -> state Γ
-| cons_rw : forall v Δ, state Δ -> add_rw_ctx Δ v = Γ -> (sem_datatype (snd v)) -> state Γ
-| cons_ro : forall v Δ, state Δ -> add_ro_ctx Δ v = Γ -> (sem_datatype (snd v)) -> state Γ.
-
+| emty_state : Γ = nil -> state Γ
+| cons_state : forall v Δ b, state Δ -> (v, b) :: Δ = Γ -> (sem_datatype (snd v)) -> state Γ.
 
 (* partial state evaluation *)
 Fixpoint val {Γ : context} (γ : state Γ) (v : typed_variable) : option (sem_datatype (snd v)).
@@ -47,101 +63,64 @@ Proof.
   rewrite<- H.
   exact (Some s).
   exact (val Δ γ v).
-  pose proof (variable_name_type_dec v0 v).
-  destruct H.
-  pose proof (eq_variable_has_same_type v0 v e1).
-  rewrite<- H.
-  exact (Some s).
-  exact (val Δ γ v).
   exact None.
 Qed.
 
-Lemma split_pair : forall A B {a c : A} {b d : B}, (a,b) = (c,d) -> a = c /\ b = d.
-Proof.
-  intros.
-  trivial.
-  inversion H.
-  constructor; trivial; trivial.
-Qed.
-
-Lemma make_pair : forall A B {a c : A} {b d : B}, a = c -> b = d -> (a,b) = (c,d).
-Proof.
-  intros.
-  rewrite H; rewrite H0; trivial.
-Qed.
-
-
 (* total state evaluation given that v is member of Γ *)
-Fixpoint val_tot_aux_rw {Γ₁ Γ₂ : list typed_variable} {v : typed_variable} (γ : state (v :: Γ₁, Γ₂)) : sem_datatype (snd v).
-Proof.
-  destruct γ.
-  unfold empty_context in e; apply split_pair in e; destruct e.
-  symmetry in H.
-  pose proof (nil_cons H).
-  contradict H1.
-  inversion e.
-  rewrite<- H0.
-  exact s.
-  inversion e.
-  assert (Δ = (v :: Γ₁, snd Δ)).
-  destruct Δ; simpl; simpl in H0.
-  exact (make_pair (list typed_variable) (list typed_variable) H0 (eq_refl l0)).
-  rewrite H in γ.
-  exact (val_tot_aux_rw (Γ₁) (snd Δ) v γ).
-Qed.
-
-Fixpoint reduce_state_rw {Γ₁ Γ₂ : list typed_variable} {v : typed_variable} (γ : state (v :: Γ₁, Γ₂)) : sem_datatype (snd v).
-Proof.
-  destruct γ.
-  unfold empty_context in e; apply split_pair in e; destruct e.
-  symmetry in H.
-  pose proof (nil_cons H).
-  contradict H1.
-  inversion e.
-  rewrite<- H0.
-  exact s.
-  inversion e.
-  assert (Δ = (v :: Γ₁, snd Δ)).
-  destruct Δ; simpl; simpl in H0.
-  exact (make_pair (list typed_variable) (list typed_variable) H0 (eq_refl l0)).
-  rewrite H in γ.
-  exact (val_tot_aux_rw (Γ₁) (snd Δ) v γ).
-Qed.
-
-
-
-Fixpoint val_tot {Γ : context} (γ : state Γ) (v : typed_variable) (p : in_context_t Γ v) : sem_datatype (snd v).
+Fixpoint val_tot {Γ : context} (γ : state Γ) (v : typed_variable) (p : ctx_mem_tv Γ v) : sem_datatype (snd v).
 Proof.
   destruct p.
+  destruct γ.
+
+  (* contradiction c :: Γ = nil *)
+  symmetry in e;   pose proof (nil_cons e) as q; contradict q.
   destruct (variable_name_type_dec v w).
+  rewrite (eq_variable_has_same_type v w e0).
+  pose proof (list_eq_destruct e).
+  destruct H.
+  pose proof (split_pair H).
+  destruct H1.
+  rewrite<- H1.
+  exact s.
+
+  pose proof (list_eq_destruct e).
+  destruct H.
+  rewrite H0 in γ.
+  exact (val_tot Γ γ v p).
+  destruct γ.
+  symmetry in e0;   pose proof (nil_cons e0) as q; contradict q.
   rewrite (eq_variable_has_same_type v w e).
-  exact (val_tot_aux_rw γ).
-  exact (
-  inversion γ.
-  
+  pose proof (list_eq_destruct e0).
+  destruct H.
+  pose proof (split_pair H).
+  destruct H1.
+  rewrite<- H1.
+  exact s.
+Qed.
 
-Definition assertion (Γ : context) (τ : result_type) := (sem_result_type τ) -> state  Γ -> Prop. 
+Definition assertion (Γ : context) (τ : datatype) := (sem_datatype τ) -> state  Γ -> Prop. 
+Definition return_is_true (Γ : context) : assertion Γ DBoolean := fun y δ => y = true.
+Definition return_is_false (Γ : context) : assertion Γ DBoolean := fun y δ => y = false.
+Definition return_is_bool (Γ : context) : assertion Γ DBoolean := fun y δ => y = true \/ y = false.
 
-(* unproved stuffs......... *)
 
 
-
-Definition merge_ro (Γ : context) (τ : result_type) (s : string) (ψ : assertion Γ τ) :
-  assertion (add_ro_ctx Γ (Id s, origin_type τ)) RCommand.
+Definition merge_ro (Γ : context) (τ : datatype) (s : string) (ψ : assertion Γ τ) :
+  assertion (add_ro_ctx Γ (Id s, τ)) DUnit.
 Proof.
 Admitted.
 
-Definition merge_rw (Γ : context) (τ : result_type) (s : string) (ψ : assertion Γ τ) :
-  assertion (add_rw_ctx Γ (Id s, origin_type τ)) RCommand.
+Definition merge_rw (Γ : context) (τ : datatype) (s : string) (ψ : assertion Γ τ) :
+  assertion (add_rw_ctx Γ (Id s, τ)) DUnit.
 Proof.
 Admitted.
 
-Definition collapse (Γ : context) (τ : result_type) (ψ : assertion Γ τ) :
+Definition collapse (Γ : context) (τ : datatype) (ψ : assertion Γ τ) :
   assertion (readonly Γ) τ.
 Proof.
 Admitted.
 
-Definition collapse_rev {Γ : context} {τ : result_type} (ψ : assertion (readonly Γ) τ) :
+Definition collapse_rev {Γ : context} {τ : datatype} (ψ : assertion (readonly Γ) τ) :
   assertion Γ τ.
 Proof.
 Admitted.
@@ -155,24 +134,22 @@ Proof.
 Admitted. 
 
 (* return φ[y/x] which is τ -> Γ -> prop *)
-Definition rewrite_void {Γ : context} (φ : assertion Γ RCommand) (v : typed_variable) : assertion Γ (RData (snd v)).
+Definition rewrite_void {Γ : context} (φ : assertion Γ DUnit) (v : typed_variable) : assertion Γ (snd v).
 Proof.
 Admitted.
 
 
-Lemma t₁ : forall s τ, sem_result_type τ = sem_result_type (RData (snd (Id s, origin_type τ))).
+Lemma t₁ : forall s τ, sem_datatype τ = sem_datatype (snd (Id s, τ)).
 Proof.
   intros.
-  assert (τ = RData (snd (Id s, origin_type τ))). 
+  assert (τ = snd (Id s, τ)). 
   simpl.
-  unfold origin_type.
-  destruct τ.
   trivial.
   rewrite<- H.
   trivial.
 Qed.
 
-Definition rewrite_aux_1 (τ : result_type) (s : string) :   sem_result_type τ -> sem_result_type (RData (snd (Id s, origin_type τ))).
+Definition rewrite_aux_1 (τ :datatype) (s :string) :   sem_datatype τ -> sem_datatype (snd (Id s, τ)).
 Proof.
   pose proof t₁ s τ.
   rewrite H.
@@ -180,30 +157,30 @@ Proof.
   exact H0.
 Qed.
 
-Definition implies {Γ : context} {τ : result_type} (p q : assertion Γ τ) : Type
+Definition implies {Γ : context} {τ : datatype} (p q : assertion Γ τ) : Type
   := forall x γ, p x γ -> q x γ.
 
-Definition implies_2 {Γ : context} {τ : result_type} (p q : assertion Γ τ) : assertion Γ τ
+Definition implies_2 {Γ : context} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ
   := fun y γ => p y γ -> q y γ.
 
-Definition conjs {Γ : context} {τ : result_type} (p q : assertion Γ τ) : Type
+Definition conjs {Γ : context} {τ : datatype} (p q : assertion Γ τ) : Type
   := forall x γ, p x γ /\ q x γ.
 
-Definition conjs_2 {Γ : context} {τ : result_type} (p q : assertion Γ τ) : assertion Γ τ 
+Definition conjs_2 {Γ : context} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ 
   := fun x γ => p x γ /\ q x γ.
 
-Definition disjs {Γ : context} {τ : result_type} (p q : assertion Γ τ) : assertion Γ τ 
+Definition disjs {Γ : context} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ 
   := fun x γ => p x γ \/ q x γ.
 
 
-Definition negate {Γ : context} {τ : result_type} (p : assertion Γ τ) : assertion Γ τ
+Definition negate {Γ : context} {τ : datatype} (p : assertion Γ τ) : assertion Γ τ
   := fun y γ => ~ p y γ.
 
 (* hoare triple is defined for well--typed commands *)
-Inductive  triple (Γ : context) (c : comp) (τ : result_type) : Type
-  := totally : assertion Γ RCommand -> assertion Γ τ -> triple Γ c τ.
+Inductive  triple (Γ : context) (c : comp) (τ : datatype)
+  := totally : assertion Γ DUnit -> assertion Γ τ -> triple Γ c τ.
 
-Definition correct  {Γ : context} {c : comp} {τ : result_type} (h : triple Γ c τ) := Type.
+Definition correct  {Γ : context} {c : comp} {τ : datatype} (h : triple Γ c τ) := Type.
 
 
 Notation "p ->> q" := (implies  p q) (at level 80) : hoare_scope.
@@ -229,7 +206,7 @@ Open Scope hoare_scope.
 Γ;Δ ⊢ {θ} skip {θ}
 *)
 Axiom proof_rule_skip :
-  forall Γ p, correct (totally Γ SKIP RCommand p p).
+  forall Γ p, correct (totally Γ SKIP DUnit p p).
 
 (*
 Γ;Δ ⊢ φ → φ' Γ;Δ ⊢ {φ'} c {y : τ | ψ'} Γ;Δ,y:τ ⊢ ψ' → ψ
@@ -250,8 +227,8 @@ Axiom proof_rule_consequence :
 *)
 Axiom proof_rule_sequence :
   forall Γ τ φ ψ θ c₁ c₂,
-    has_type Γ c₁ RCommand -> has_type Γ c₂ τ ->
-    correct (totally Γ c₁ RCommand φ ψ) ->
+    has_type Γ c₁ DUnit -> has_type Γ c₂ τ ->
+    correct (totally Γ c₁ DUnit φ ψ) ->
     correct (totally Γ c₂ τ ψ θ) ->
     correct (totally Γ (c₁ ;; c₂) τ φ θ).
 
@@ -262,13 +239,13 @@ Axiom proof_rule_sequence :
  *)
 Axiom proof_rule_newvar :
   forall Γ σ φ ψ τ e c s θ,
-    not_in_context_t Γ (Id s, origin_type σ) ->
+    not_ctx_mem_tv Γ (Id s, σ) ->
     correct (totally (readonly Γ) e σ φ ψ) ->
-    correct (totally (add_rw_ctx Γ (Id s, origin_type σ)) c τ (merge_rw Γ σ s (collapse_rev ψ)) θ) ->
+    correct (totally (add_rw_ctx Γ (Id s, σ)) c τ (merge_rw Γ σ s (collapse_rev ψ)) θ) ->
     correct (totally Γ (Newvar s e c) τ (collapse_rev φ)
                      (fun y δ => exists x,
-                         let v := (Id s, origin_type σ) in
-                         let γ' := cons_rw (add_rw_ctx Γ v) v Γ δ eq_refl x in (θ y γ'))
+                         let v := (Id s, σ) in
+                         let γ' := cons_state (add_rw_ctx Γ v) v Γ true δ eq_refl x in (θ y γ'))
             ).
 
   
@@ -280,10 +257,10 @@ Axiom proof_rule_newvar :
 Axiom proof_rule_assignment :
   forall Γ s e τ φ ψ θ,
     correct (totally (readonly Γ) e τ φ ψ) ->
-    correct (totally Γ (SET s := e) RCommand
+    correct (totally Γ (SET s := e) DUnit
                      ((collapse_rev φ) ∧
                       (fun _ δ => forall y,
-                       (collapse_rev ψ) y δ -> rewrite_void θ (Id s, origin_type τ) (rewrite_aux_1 τ s y) δ    
+                       (collapse_rev ψ) y δ -> rewrite_void θ (Id s, τ) (rewrite_aux_1 τ s y) δ    
                       )) θ 
 
             ).
@@ -295,8 +272,8 @@ x:τ ∈ Γ
 Γ;Δ ⊢ {θ} x {y : τ | θ(y)}
 *)
 Axiom proof_rule_variable :
-  forall Γ x τ θ (p :  in_context_t Γ (Id x, origin_type τ)),
-    correct (totally Γ (Var x) τ θ (fun y δ => θ tt δ /\ val_tot δ (Id x, origin_type τ) p = rewrite_aux_1 τ x y)).
+  forall Γ x τ θ (p :  ctx_mem_tv Γ (Id x, τ)),
+    correct (totally Γ (Var x) τ θ (fun y δ => θ tt δ /\ val_tot δ (Id x, τ) p = rewrite_aux_1 τ x y)).
     
 
 (*
@@ -307,22 +284,22 @@ Axiom proof_rule_variable :
 (* --- uniop ---*)
 Axiom proof_rule_uniop :
   forall Γ e u τ₁ τ φ ψ
-         (p₁ : sem_result_type τ₁ = sem_datatype (uni_type u false))
-         (p₂ : sem_datatype (uni_type u true) =  sem_result_type (RData τ)),
+         (p₁ : sem_datatype τ₁ = sem_datatype (uni_type u false))
+         (p₂ : sem_datatype (uni_type u true) =  sem_datatype τ),
     correct (totally (readonly Γ) e τ₁ φ ψ) ->
-    correct (totally Γ (UniOp u e) (RData τ) (collapse_rev φ)
+    correct (totally Γ (UniOp u e) τ (collapse_rev φ)
                      (fun y δ => exists y₁,
                           (collapse_rev ψ) y₁ δ /\ y = eq_Set p₂ (sem_UniOp u (eq_Set p₁ y₁)))).
 
 (* --- binop --- *)
 Axiom proof_rule_binop :
   forall Γ e₁ e₂ b τ₁ τ₂ τ φ ψ₁ ψ₂
-         (p₁ : sem_result_type τ₁ = sem_datatype(bin_type b one))
-         (p₂ : sem_result_type τ₂ = sem_datatype(bin_type b two))
-         (p₃ : sem_datatype (bin_type b third) = sem_result_type (RData τ)),
+         (p₁ : sem_datatype τ₁ = sem_datatype(bin_type b one))
+         (p₂ : sem_datatype τ₂ = sem_datatype(bin_type b two))
+         (p₃ : sem_datatype (bin_type b third) = sem_datatype τ),
     correct (totally (readonly Γ) e₁ τ₁ φ ψ₁) ->
     correct (totally (readonly Γ) e₂ τ₂ φ ψ₂) ->
-    correct (totally Γ (BinOp b e₁ e₂) (RData τ) (collapse_rev φ)
+    correct (totally Γ (BinOp b e₁ e₂) τ (collapse_rev φ)
                      (fun y δ => exists y₁ y₂,
                           (collapse_rev ψ₁) y₁ δ /\ (collapse_rev ψ₂) y₂ δ /\
                           y = eq_Set p₃ (sem_BinOp b (eq_Set p₁ y₁) (eq_Set p₂ y₂)))).
@@ -339,16 +316,12 @@ Axiom proof_rule_binop :
 Γ;Δ ⊢ {φ ∧ (T₁ ∨ T₂)} case e₁ ⇒ c₁ || e₂ ⇒ c₂ end {y : τ | ψ}
 *)
 
-Definition return_is_true (Γ : context) : assertion Γ RBoolean := fun y δ => y = true.
-Definition return_is_false (Γ : context) : assertion Γ RBoolean := fun y δ => y = false.
-Definition return_is_bool (Γ : context) : assertion Γ RBoolean := fun y δ => y = true \/ y = false.
-
 Axiom proof_rule_case :
   forall Γ e₁ e₂ c₁ c₂ τ T₁ T₂ F₁ F₂ φ ψ,
-    correct (totally (readonly Γ) e₁ RBoolean T₁ (return_is_true (readonly Γ))) ->
-    correct (totally (readonly Γ) e₂ RBoolean T₂ (return_is_true (readonly Γ))) ->
-    correct (totally (readonly Γ) e₁ RBoolean (T₂ ∧ F₁) (return_is_false (readonly Γ))) ->
-    correct (totally (readonly Γ) e₂ RBoolean (T₁ ∧ F₂) (return_is_false (readonly Γ))) ->
+    correct (totally (readonly Γ) e₁ DBoolean T₁ (return_is_true (readonly Γ))) ->
+    correct (totally (readonly Γ) e₂ DBoolean T₂ (return_is_true (readonly Γ))) ->
+    correct (totally (readonly Γ) e₁ DBoolean (T₂ ∧ F₁) (return_is_false (readonly Γ))) ->
+    correct (totally (readonly Γ) e₂ DBoolean (T₁ ∧ F₂) (return_is_false (readonly Γ))) ->
     correct (totally Γ c₁ τ (collapse_rev (φ ∧ (¬ F₁))) ψ) ->
     correct (totally Γ c₂ τ (collapse_rev (φ ∧ (¬ F₂))) ψ) ->
     correct (totally Γ (Case e₁ c₁ e₂ c₂) τ (collapse_rev (φ ∧ (T₁ ∨ T₂))) ψ).
@@ -363,15 +336,15 @@ Axiom proof_rule_case :
  *)
 Axiom proof_rule_while :
   forall Γ e c I T F ψ,
-    correct (totally (readonly Γ) e RBoolean I (return_is_bool (readonly Γ))) ->
-    correct (totally (readonly Γ) e RBoolean T (return_is_true (readonly Γ))) ->
+    correct (totally (readonly Γ) e DBoolean I (return_is_bool (readonly Γ))) ->
+    correct (totally (readonly Γ) e DBoolean T (return_is_true (readonly Γ))) ->
     (forall δ, exists! n : Z, ψ n δ) ->
-    correct (totally (readonly Γ) e RBoolean (F ∨ (fun _ δ => (exists z, (ψ z δ /\ (z < 0)%Z)))) (return_is_false (readonly Γ))) ->
-    (forall z₀, correct (totally Γ c RCommand
+    correct (totally (readonly Γ) e DBoolean (F ∨ (fun _ δ => (exists z, (ψ z δ /\ (z < 0)%Z)))) (return_is_false (readonly Γ))) ->
+    (forall z₀, correct (totally Γ c DUnit
                                 ((collapse_rev I) ∧ (¬ (collapse_rev F)) ∧ (fun _ δ => ψ z₀ (s_collapse δ)))
                                 (collapse_rev (I ∧ fun _ δ => (forall z, ψ z δ -> (z < z₀)%Z)))
     )) ->
-    correct (totally Γ (While e c) RCommand (collapse_rev I) (collapse_rev (I ∧ (¬ T)))).
+    correct (totally Γ (While e c) DUnit (collapse_rev I) (collapse_rev (I ∧ (¬ T)))).
         
 
 
@@ -383,11 +356,11 @@ Axiom proof_rule_while :
 Require Import Reals.
 Axiom proof_rule_limit :
   forall Γ s e φ φ' ψ ψ',
-    correct (totally (add_ro_ctx (readonly Γ) (Id s, DInteger)) e RReal φ' ψ') ->
+    correct (totally (add_ro_ctx (readonly Γ) (Id s, DInteger)) e DReal φ' ψ') ->
     φ ->> (fun y δ => forall x : Z, let v := (Id s, DInteger) in
-                                    let δ' := cons_ro (add_ro_ctx (readonly Γ) v) v (readonly Γ) δ eq_refl x in φ' y δ') ->
+                                    let δ' := cons_state (add_ro_ctx (readonly Γ) v) v (readonly Γ) false δ eq_refl x in φ' y δ') ->
     forall n y z δ,
       φ tt δ -> let v := (Id s, DInteger) in
-      (ψ' y (cons_ro (add_ro_ctx (readonly Γ) v) v (readonly Γ) δ eq_refl n)) /\ ψ z δ -> (Rabs (y - z) <= ι n)%R.
+      (ψ' y (cons_state (add_ro_ctx (readonly Γ) v) v (readonly Γ) false δ eq_refl n)) /\ ψ z δ -> (Rabs (y - z) <= ι n)%R.
 
 

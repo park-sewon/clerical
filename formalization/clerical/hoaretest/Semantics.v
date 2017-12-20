@@ -17,27 +17,15 @@ Definition sem_datatype (τ : datatype) : Set :=
   | DReal => R
   end.
 
-Definition sem_result_type (ρ : result_type) :=
-  match ρ with
-  | RData τ => sem_datatype τ
-  end.
-
 (* sem of context should be a list of (sem) typed variables *)
-Definition sorted_variable : Type := variable * Set.
-Definition context_meaning : Type := list sorted_variable * list sorted_variable.
+Definition sorted_variable : Type := (variable * Set).
 
-Fixpoint sem_context_aux (Γ : list typed_variable) :  list sorted_variable :=
+Fixpoint sem_context (Γ : context) : list (sorted_variable * bool) :=
   match Γ with
+  | (v, b) :: Γ' => ((fst v, (sem_datatype (snd v))), b) :: (sem_context Γ')
   | nil => nil
-  | v :: Γ => cons (fst v, sem_datatype (snd v)) (sem_context_aux Γ)
   end.
-
-Definition sem_context (Γ : context) : context_meaning :=
-  (sem_context_aux (fst Γ), sem_context_aux (snd Γ)).
-
-
-
-
+    
 (* Semantic for operators *)
 
 (* --- Unary Operators ---*)

@@ -2,11 +2,11 @@ Require Import Clerical.
 Require Import Bool.
 Require Import List.
 
-Lemma eq_variable_has_same_type : forall v w, eq_name_type_v v w = true -> snd v = snd w.
+Lemma eq_variable_has_same_type : forall v w, eq_tv_tv v w = true -> snd v = snd w.
 Proof.
   intros.
-  unfold eq_name_type_v in H.
-  destruct (eq_name_v v w).
+  unfold eq_tv_tv in H.
+  destruct (eq_tv_tv_name v w).
   unfold eq_type in H.
   induction (snd v).
   induction (snd w).
@@ -62,39 +62,32 @@ Proof.
 Qed.
 
 
-Fixpoint tv_mem_aux (Γ : list typed_variable) (v : typed_variable) : bool :=
+Fixpoint ctx_mem_tv_fun (Γ : context) (v : typed_variable) : bool :=
   match Γ with
-  | w :: Γ => if (eq_name_type_v v w) then true else tv_mem_aux Γ v
+  | (w, b) :: Γ => if (eq_tv_tv v w) then true else ctx_mem_tv_fun Γ v
   | _ => false
   end.
 
-Definition tv_mem (Γ : context) (v : typed_variable) : bool :=
-  if (tv_mem_aux (fst Γ) v) then true else if (tv_mem_aux (snd Γ) v) then true else false.
-
-Lemma typed_mem_dec : forall Γ v, {tv_mem Γ v = true} + {tv_mem Γ v = false}.
+Lemma typed_mem_dec : forall Γ v, {ctx_mem_tv_fun Γ v = true} + {ctx_mem_tv_fun Γ v = false}.
 Proof.
   intros Γ v.
-  pose proof (bool_dec (tv_mem Γ v) true).
+  pose proof (bool_dec (ctx_mem_tv_fun Γ v) true).
   destruct H.
   left; trivial.
-  pose proof (not_true_is_false (tv_mem Γ v) n).
+  pose proof (not_true_is_false (ctx_mem_tv_fun Γ v) n).
   right; trivial.
 Qed.
 
 
-Lemma variable_name_type_dec : forall v w, {eq_name_type_v v w = true} + {eq_name_type_v v w = false}.
+Lemma variable_name_type_dec : forall v w, {eq_tv_tv v w = true} + {eq_tv_tv v w = false}.
 Proof.
   intros.
-  pose proof (bool_dec (eq_name_type_v v w) true).
+  pose proof (bool_dec (eq_tv_tv v w) true).
   destruct H.
   left; trivial.
-  pose proof (not_true_is_false (eq_name_type_v v w) n).
+  pose proof (not_true_is_false (eq_tv_tv v w) n).
   right; trivial.
 Qed.
-
-
-Definition origin_type (τ : result_type) : datatype := match τ with RData τ => τ end.
-
 
 Require Import Coq.Reals.Reals.
 Require Import ZArith.
