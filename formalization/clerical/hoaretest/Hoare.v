@@ -34,11 +34,35 @@ Proof.
   rewrite H; rewrite H0; trivial.
 Qed.
 
+Definition head {A : Type} (a : list A) : option A :=
+  match a with
+  | a :: A => Some a
+  | _ => None
+  end.
+Definition tail {A : Type} (a : list A) : list A :=
+  match a with
+  | a :: A => A
+  | _ => nil
+  end.
+
+  
+
 Lemma list_eq_destruct : forall {A : Type} {a b : A} {c d : list A},
     a :: c = b :: d -> a = b /\ c = d.
 Proof.
   intros.
-  Admitted.
+  assert (head (a::c) = head (b::d)).
+  rewrite H.
+  trivial.
+  simpl in H0.
+  inversion H0.
+  constructor; trivial.
+  destruct H0.
+  assert (tail (a::c) = tail (b::d)).
+  rewrite H; trivial.
+  simpl in H0.
+  trivial.
+Qed.
 
 Definition add_rw_ctx (Γ : context) (v : typed_variable) : context := (v, true) :: Γ.
 Definition add_ro_ctx (Γ : context) (v : typed_variable) : context := (v, false) :: Γ.
@@ -104,40 +128,82 @@ Definition return_is_false (Γ : context) : assertion Γ DBoolean := fun y δ =>
 Definition return_is_bool (Γ : context) : assertion Γ DBoolean := fun y δ => y = true \/ y = false.
 
 
-
-Definition merge_ro (Γ : context) (τ : datatype) (s : string) (ψ : assertion Γ τ) :
-  assertion (add_ro_ctx Γ (Id s, τ)) DUnit.
+Definition pop_state {Γ : context} {w : typed_variable * bool} (γ : state (w :: Γ)) :
+  (sem_datatype (snd (fst w))) *  state Γ.
 Proof.
-Admitted.
+  inversion γ.
+  symmetry in H; apply nil_cons in H; contradict H.
+  apply list_eq_destruct in H; destruct H.
+  elim H.
+  simpl.
+  rewrite <- H1; exact (H0, X).
+Qed.
 
-Definition merge_rw (Γ : context) (τ : datatype) (s : string) (ψ : assertion Γ τ) :
-  assertion (add_rw_ctx Γ (Id s, τ)) DUnit.
+Definition merge_rw {Γ : context} {τ : datatype} (s : string) (ψ : assertion Γ τ) :
+  assertion (add_rw_ctx Γ (Id s, τ)) DUnit :=
+  fun _ δ => let (y, γ) := pop_state δ in ψ y γ.
+  
+Lemma empty_context_is : readonly nil = nil.
 Proof.
-Admitted.
+  simpl; trivial.
+Qed.
 
-Definition collapse (Γ : context) (τ : datatype) (ψ : assertion Γ τ) :
-  assertion (readonly Γ) τ.
+Lemma readonly_cons : forall v Γ b, (v, false) :: readonly Γ = readonly ((v, b) :: Γ).
 Proof.
-Admitted.
+  intros; simpl; trivial.
+Qed.
 
+Lemma readonly_cons_2 : forall v Γ b, (v, false) :: readonly Γ = readonly ((v, b) :: Γ).
+Proof.
+  intros; simpl; trivial.
+Qed.
+
+
+Fixpoint s_collapse {Γ : context} (γ : state Γ) : state (readonly Γ).
+Proof.
+  inversion γ.
+  rewrite  H.
+  rewrite empty_context_is.
+  exact (emty_state nil eq_refl).
+
+  pose proof (readonly_cons v Δ b).
+  rewrite H in H1.
+  exact (cons_state (readonly Γ) v (readonly Δ) false (s_collapse Δ X) H1 H0).
+Qed.
+
+Fixpoint s_collapse_rev {Γ : context} (γ : state (readonly Γ)) : state Γ.
+Proof.
+  inversion γ.
+  assert (Γ = nil).
+  destruct Γ.
+  trivial.
+  simpl in H; symmetry in H; destruct p; apply nil_cons in H; contradict H.
+
+  rewrite H0.
+  exact (emty_state nil eq_refl).
+  destruct Γ.
+  simpl in H; symmetry in H; apply nil_cons in H; contradict H.
+  destruct p.
+  simpl in H.
+  apply (list_eq_destruct) in H; destruct H.
+  rewrite H1 in X.
+  pose proof (s_collapse_rev Γ X).
+  apply (split_pair) in H; destruct H.
+  rewrite <- H.
+  exact (cons_state ((v, b0) :: Γ) v Γ b0 X0  eq_refl H0).
+Qed.
+  
+Definition collapse {Γ : context} {τ : datatype} (ψ : assertion Γ τ) :
+  assertion (readonly Γ) τ := fun y (δ : state (readonly Γ)) => ψ y (s_collapse_rev δ).
+  
 Definition collapse_rev {Γ : context} {τ : datatype} (ψ : assertion (readonly Γ) τ) :
-  assertion Γ τ.
-Proof.
-Admitted.
+  assertion Γ τ := fun y δ => ψ y (s_collapse δ).
 
-Definition s_collapse {Γ : context} (γ : state Γ) : state (readonly Γ).
-Proof.
-Admitted.
-
-Definition s_collapse_rev {Γ : context} (γ : state (readonly Γ)) : state Γ.
-Proof.
-Admitted. 
-
-(* return φ[y/x] which is τ -> Γ -> prop *)
-Definition rewrite_void {Γ : context} (φ : assertion Γ DUnit) (v : typed_variable) : assertion Γ (snd v).
-Proof.
-Admitted.
-
+(* return φ[y/x] which is τ -> Γ -> prop 
+!!!! needs closer look whether this is really rewritting !!!!*)
+Definition rewrite_void {Γ : context} (φ : assertion Γ DUnit) (v : typed_variable) (p :ctx_mem_tv Γ v)
+  : assertion Γ (snd v)
+:= fun y δ => val_tot δ v p = y /\ φ tt δ.
 
 Lemma t₁ : forall s τ, sem_datatype τ = sem_datatype (snd (Id s, τ)).
 Proof.
@@ -241,7 +307,7 @@ Axiom proof_rule_newvar :
   forall Γ σ φ ψ τ e c s θ,
     not_ctx_mem_tv Γ (Id s, σ) ->
     correct (totally (readonly Γ) e σ φ ψ) ->
-    correct (totally (add_rw_ctx Γ (Id s, σ)) c τ (merge_rw Γ σ s (collapse_rev ψ)) θ) ->
+    correct (totally (add_rw_ctx Γ (Id s, σ)) c τ (merge_rw s (collapse_rev ψ)) θ) ->
     correct (totally Γ (Newvar s e c) τ (collapse_rev φ)
                      (fun y δ => exists x,
                          let v := (Id s, σ) in
@@ -255,12 +321,12 @@ Axiom proof_rule_newvar :
 Γ;Δ ⊢ {φ ∧ ∀ y : τ. (ψ -> θ[y/x]} x:= e {θ}
 *)
 Axiom proof_rule_assignment :
-  forall Γ s e τ φ ψ θ,
+  forall Γ s e τ φ ψ θ (p : ctx_mem_tv Γ (Id s, τ)),
     correct (totally (readonly Γ) e τ φ ψ) ->
     correct (totally Γ (SET s := e) DUnit
                      ((collapse_rev φ) ∧
                       (fun _ δ => forall y,
-                       (collapse_rev ψ) y δ -> rewrite_void θ (Id s, τ) (rewrite_aux_1 τ s y) δ    
+                       (collapse_rev ψ) y δ -> rewrite_void θ (Id s, τ) p (rewrite_aux_1 τ s y) δ    
                       )) θ 
 
             ).
