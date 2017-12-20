@@ -9,6 +9,19 @@ Require Import Hoare_aux.
 (* proof rules by discussion between Andrej Bauer, Sewon Park and Alex Simpson
    Implementation detail discussed between Franz B. and Sewon Park *)
 
+
+(* There should be built-in functions for these... *)
+Definition eq_Set {A B : Set} (p : A = B) (a : A) : B.
+Proof.
+  rewrite<- p;  exact a.
+Qed.
+Definition eq_Type {A B : Type} (p : A = B) (a : A) : B.
+Proof.
+  rewrite<- p;  exact a.
+Qed.
+
+
+
 Definition add_rw_ctx (Γ : context) (v : typed_variable) : context := (v :: fst Γ, snd Γ).
 Definition add_ro_ctx (Γ : context) (v : typed_variable) : context := (fst Γ, v :: snd Γ).
 
@@ -21,6 +34,7 @@ Inductive state (Γ : context) : Type :=
 | cons_ro : forall v Δ, state Δ -> add_ro_ctx Δ v = Γ -> (sem_datatype (snd v)) -> state Γ.
 
 
+(* partial state evaluation *)
 Fixpoint val {Γ : context} (γ : state Γ) (v : typed_variable) : option (sem_datatype (snd v)).
 Proof.
   pose proof (typed_mem_dec Γ v).
@@ -42,15 +56,75 @@ Proof.
   exact None.
 Qed.
 
+Lemma split_pair : forall A B {a c : A} {b d : B}, (a,b) = (c,d) -> a = c /\ b = d.
+Proof.
+  intros.
+  trivial.
+  inversion H.
+  constructor; trivial; trivial.
+Qed.
+
+Lemma make_pair : forall A B {a c : A} {b d : B}, a = c -> b = d -> (a,b) = (c,d).
+Proof.
+  intros.
+  rewrite H; rewrite H0; trivial.
+Qed.
+
+
+(* total state evaluation given that v is member of Γ *)
+Fixpoint val_tot_aux_rw {Γ₁ Γ₂ : list typed_variable} {v : typed_variable} (γ : state (v :: Γ₁, Γ₂)) : sem_datatype (snd v).
+Proof.
+  destruct γ.
+  unfold empty_context in e; apply split_pair in e; destruct e.
+  symmetry in H.
+  pose proof (nil_cons H).
+  contradict H1.
+  inversion e.
+  rewrite<- H0.
+  exact s.
+  inversion e.
+  assert (Δ = (v :: Γ₁, snd Δ)).
+  destruct Δ; simpl; simpl in H0.
+  exact (make_pair (list typed_variable) (list typed_variable) H0 (eq_refl l0)).
+  rewrite H in γ.
+  exact (val_tot_aux_rw (Γ₁) (snd Δ) v γ).
+Qed.
+
+Fixpoint reduce_state_rw {Γ₁ Γ₂ : list typed_variable} {v : typed_variable} (γ : state (v :: Γ₁, Γ₂)) : sem_datatype (snd v).
+Proof.
+  destruct γ.
+  unfold empty_context in e; apply split_pair in e; destruct e.
+  symmetry in H.
+  pose proof (nil_cons H).
+  contradict H1.
+  inversion e.
+  rewrite<- H0.
+  exact s.
+  inversion e.
+  assert (Δ = (v :: Γ₁, snd Δ)).
+  destruct Δ; simpl; simpl in H0.
+  exact (make_pair (list typed_variable) (list typed_variable) H0 (eq_refl l0)).
+  rewrite H in γ.
+  exact (val_tot_aux_rw (Γ₁) (snd Δ) v γ).
+Qed.
+
+
+
+Fixpoint val_tot {Γ : context} (γ : state Γ) (v : typed_variable) (p : in_context_t Γ v) : sem_datatype (snd v).
+Proof.
+  destruct p.
+  destruct (variable_name_type_dec v w).
+  rewrite (eq_variable_has_same_type v w e).
+  exact (val_tot_aux_rw γ).
+  exact (
+  inversion γ.
+  
 
 Definition assertion (Γ : context) (τ : result_type) := (sem_result_type τ) -> state  Γ -> Prop. 
 
 (* unproved stuffs......... *)
 
-(* total function of evaluation with given that Γ contains v *)
-Definition val_tot {Γ : context} (γ : state Γ) (v : typed_variable) (p : in_context_t Γ v) : sem_datatype (snd v).
-Proof.
-Admitted.
+
 
 Definition merge_ro (Γ : context) (τ : result_type) (s : string) (ψ : assertion Γ τ) :
   assertion (add_ro_ctx Γ (Id s, origin_type τ)) RCommand.
@@ -224,20 +298,6 @@ Axiom proof_rule_variable :
   forall Γ x τ θ (p :  in_context_t Γ (Id x, origin_type τ)),
     correct (totally Γ (Var x) τ θ (fun y δ => θ tt δ /\ val_tot δ (Id x, origin_type τ) p = rewrite_aux_1 τ x y)).
     
-
-(* is this okay to have this? *)
-Definition eq_Set {A B : Set} (p : A = B) (a : A) : B.
-Proof.
-  rewrite<- p.
-  exact a.
-Qed.
-
-Definition eq_Type {A B : Type} (p : A = B) (a : A) : B.
-Proof.
-  rewrite<- p.
-  exact a.
-Qed.
-
 
 (*
 ;Γ,Δ ⊢ {φ} e₁ {y : τ₁ | ψ₁} ... ;Γ,Δ ⊢ {φ} eᵢ {y : τᵢ | ψᵢ} 
