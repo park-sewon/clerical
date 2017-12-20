@@ -83,7 +83,7 @@ Admitted.
 (* return φ[y/x] which is τ -> Γ -> prop *)
 Definition rewrite_void {Γ : context} (φ : assertion Γ RCommand) (v : typed_variable) : assertion Γ (RData (snd v)).
 Proof.
-  Admitted.
+Admitted.
 
 
 Lemma t₁ : forall s τ, sem_result_type τ = sem_result_type (RData (snd (Id s, origin_type τ))).
@@ -225,21 +225,47 @@ Axiom proof_rule_variable :
     correct (totally Γ (Var x) τ θ (fun y δ => θ tt δ /\ val_tot δ (Id x, origin_type τ) p = rewrite_aux_1 τ x y)).
     
 
-  
+(* is this okay to have this? *)
+Definition eq_Set {A B : Set} (p : A = B) (a : A) : B.
+Proof.
+  rewrite<- p.
+  exact a.
+Qed.
+
+Definition eq_Type {A B : Type} (p : A = B) (a : A) : B.
+Proof.
+  rewrite<- p.
+  exact a.
+Qed.
+
 
 (*
 ;Γ,Δ ⊢ {φ} e₁ {y : τ₁ | ψ₁} ... ;Γ,Δ ⊢ {φ} eᵢ {y : τᵢ | ψᵢ} 
 —————————————————————————————————————————————-—————————————————-—–———————————————- (r.operator)
 Γ;Δ ⊢ {φ} op(e₁, ..., eᵢ) {y : τ |∃ y₁,...,yᵢ, y = [[op]](y₁, ..., yᵢ) ∧ ψ₁∧...∧ψᵢ}
-*)
-(* --- binop --- 
+ *)
+(* --- uniop ---*)
+Axiom proof_rule_uniop :
+  forall Γ e u τ₁ τ φ ψ
+         (p₁ : sem_result_type τ₁ = sem_datatype (uni_type u false))
+         (p₂ : sem_datatype (uni_type u true) =  sem_result_type (RData τ)),
+    correct (totally (readonly Γ) e τ₁ φ ψ) ->
+    correct (totally Γ (UniOp u e) (RData τ) (collapse_rev φ)
+                     (fun y δ => exists y₁,
+                          (collapse_rev ψ) y₁ δ /\ y = eq_Set p₂ (sem_UniOp u (eq_Set p₁ y₁)))).
+
+(* --- binop --- *)
 Axiom proof_rule_binop :
-  forall Γ e₁ e₂ b τ₁ τ₂ φ ψ₁ ψ₂,
+  forall Γ e₁ e₂ b τ₁ τ₂ τ φ ψ₁ ψ₂
+         (p₁ : sem_result_type τ₁ = sem_datatype(bin_type b one))
+         (p₂ : sem_result_type τ₂ = sem_datatype(bin_type b two))
+         (p₃ : sem_datatype (bin_type b third) = sem_result_type (RData τ)),
     correct (totally (readonly Γ) e₁ τ₁ φ ψ₁) ->
     correct (totally (readonly Γ) e₂ τ₂ φ ψ₂) ->
-    correct (totally Γ (BinOp b e₁ e₂) (binary_op_type τ₁ τ₂)
-*)
-
+    correct (totally Γ (BinOp b e₁ e₂) (RData τ) (collapse_rev φ)
+                     (fun y δ => exists y₁ y₂,
+                          (collapse_rev ψ₁) y₁ δ /\ (collapse_rev ψ₂) y₂ δ /\
+                          y = eq_Set p₃ (sem_BinOp b (eq_Set p₁ y₁) (eq_Set p₂ y₂)))).
 
 
 (*

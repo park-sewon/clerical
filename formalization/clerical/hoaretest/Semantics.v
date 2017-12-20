@@ -1,6 +1,7 @@
 Require Import ZArith.
 Require Import Reals.
 Require Import List.
+Require Import Bool.
 Require Coq.Program.Equality.
 
 Require Import Clerical.
@@ -33,8 +34,94 @@ Fixpoint sem_context_aux (Γ : list typed_variable) :  list sorted_variable :=
 
 Definition sem_context (Γ : context) : context_meaning :=
   (sem_context_aux (fst Γ), sem_context_aux (snd Γ)).
+
+
+
+
+(* Semantic for operators *)
+
+(* --- Unary Operators ---*)
+Definition uni_type (u : unary_op) (b : bool) : datatype :=
+  match u with
+  | OpNot => match b with | true => DBoolean | false => DBoolean end 
+  | OpNegInt => match b with | true => DInteger | false => DInteger end 
+  | OpNegReal => match b with | true => DReal | false => DReal end 
+  end.
+
+
+Definition sem_UniOp (u : unary_op) : sem_datatype (uni_type u false) -> sem_datatype (uni_type u true).
+Proof.
+  intros.
+  destruct u.
+  compute; compute in H.
+  exact (negb H).
+  compute; compute in H.
+  exact (-H)%Z.
+  compute; compute in H.
+  exact (-H)%R.
+Qed.
+
   
-             
+
+
+(* --- Binary Operators ---*)
+Inductive three := one | two | third.
+Definition bin_type (b : binary_op) (t : three) : datatype :=
+  match b with  
+  | OpPlusInt  => match t with | one => DInteger | two => DInteger | three => DInteger end 
+  | OpMultInt  => match t with | one => DInteger | two => DInteger | three => DInteger end 
+  | OpSubInt   => match t with | one => DInteger | two => DInteger | three => DInteger end 
+  | OpPlusReal => match t with | one => DReal | two => DReal | three => DReal end 
+  | OpMultReal => match t with | one => DReal | two => DReal | three => DReal end 
+  | OpSubReal  => match t with | one => DReal | two => DReal | three => DReal end 
+  | OpDivReal  => match t with | one => DReal | two => DReal | three => DReal end 
+  | OpLtInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpEqInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpGtInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpLeInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpGeInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpLtReal   => match t with | one => DReal | two => DReal | three => DBoolean end 
+  | OpGtReal   => match t with | one => DReal | two => DReal | three => DBoolean end 
+  | OpAnd      => match t with | one => DBoolean | two => DBoolean | three => DBoolean end
+  | OpOr       => match t with | one => DBoolean | two => DBoolean | three => DBoolean end
+  end.
+
+
+Definition sem_BinOp (b : binary_op)
+  : sem_datatype (bin_type b one) -> sem_datatype (bin_type b two) -> sem_datatype (bin_type b third).
+Proof.
+  intros.
+  destruct b.
+  compute; compute in H; compute in H0.
+  exact (H + H0)%Z.
+  compute; compute in H; compute in H0.
+  exact (H * H0)%Z.
+  compute; compute in H; compute in H0.
+  exact (H - H0)%Z.
+  compute; compute in H; compute in H0.
+  exact (H + H0)%R.
+  compute; compute in H; compute in H0.
+  exact (H * H0)%R.
+  compute; compute in H; compute in H0.
+  exact (H - H0)%R.
+  compute; compute in H; compute in H0.
+  exact (H / H0)%R.
+  exact true.
+  exact true.
+  exact true.
+  exact true.
+  exact true.
+  exact true.
+  exact true.
+  exact true.
+  exact true.
+Qed.
+
+
+
+
+
+
 
 (* The monad of computations. *)
 
