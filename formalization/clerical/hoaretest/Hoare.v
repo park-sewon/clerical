@@ -73,11 +73,45 @@ Definition collapse_rev {Γ : context} {τ : result_type} (ψ : assertion (reado
 Proof.
   Admitted.
 
+(* return φ[y/x] which is τ -> Γ -> prop *)
+Definition rewrite_void {Γ : context} (φ : assertion Γ RCommand) (v : typed_variable) : assertion Γ (RData (snd v)).
+Proof.
+  Admitted.
 
+
+Lemma t₁ : forall s τ, sem_result_type τ = sem_result_type (RData (snd (Id s, origin_type τ))).
+Proof.
+  intros.
+  assert (τ = RData (snd (Id s, origin_type τ))). 
+  simpl.
+  unfold origin_type.
+  destruct τ.
+  trivial.
+  rewrite<- H.
+  trivial.
+Qed.
+
+Definition rewrite_aux (τ : result_type) (s : string) :   sem_result_type τ -> sem_result_type (RData (snd (Id s, origin_type τ))).
+Proof.
+  pose proof t₁ s τ.
+  rewrite H.
+  intro.
+  exact H0.
+Qed.
+  
 
     
 Definition implies {Γ : context} {τ : result_type} (p q : assertion Γ τ) : Type
   := forall x γ, p x γ -> q x γ.
+
+Definition implies_2 {Γ : context} {τ : result_type} (p q : assertion Γ τ) : assertion Γ τ
+  := fun y γ => p y γ -> q y γ.
+
+Definition conjs {Γ : context} {τ : result_type} (p q : assertion Γ τ) : Type
+  := forall x γ, p x γ /\ q x γ.
+
+Definition conjs_2 {Γ : context} {τ : result_type} (p q : assertion Γ τ) : assertion Γ τ 
+  := fun x γ => p x γ /\ q x γ.
 
 (* hoare triple is defined for well--typed commands *)
 Inductive  triple (Γ : context) (c : comp) (τ : result_type) : Type
@@ -87,12 +121,22 @@ Definition correct  {Γ : context} {c : comp} {τ : result_type} (h : triple Γ 
 
 
 Notation "p ->> q" := (implies  p q) (at level 80) : hoare_scope.
+Notation "p //\ q" := (conjs  p q) (at level 80) : hoare_scope.
+
+Notation "p → q" := (implies_2  p q) (at level 80) : hoare_scope.
+Notation "p ∧ q" := (conjs_2  p q) (at level 80) : hoare_scope.
+
+
+
 Open Scope hoare_scope.
 
 (* Hoare–style proof rules *)
 (* 1. Skip
-   2. Newvar
-   3. *)
+   2. Conseq
+   3. Sequence
+   4. Newvar
+   5. Assignment
+*)
 
 
 (*
@@ -142,7 +186,7 @@ Axiom proof_rule_newvar :
                          let γ' := cons_rw (add_rw_ctx Γ v) v Γ δ eq_refl x in (θ y γ'))
             ).
 
-
+  
 (*
 ;Γ,Δ ⊢ {φ} e {y : τ | ψ}
 ——————————————————-—————————————————-—–———————————————- (r.assignment)
@@ -151,11 +195,29 @@ Axiom proof_rule_newvar :
 Axiom proof_rule_assignment :
   forall Γ s e τ φ ψ θ,
     correct (totally (readonly Γ) e τ φ ψ) ->
-    correct (totally Γ (SET s := e) RCommand φ θ).
+    correct (totally Γ (SET s := e) RCommand
+                     ((collapse_rev φ) ∧
+                      (fun _ δ => forall y,
+                       (collapse_rev ψ) y δ -> rewrite_void θ (Id s, origin_type τ) (rewrite_aux τ s y) δ    
+                      )) θ 
+
+            ).
 
 
+(*
+x ∈ Γ 
+——————————————————-—————————————————-—–———————————————- (r.variable)
+Γ;Δ ⊢ {θ} x {y : τ | θ(y)}
+*)
 
 
+(*
+;Γ,Δ ⊢ {φ} e₁ {y : τ₁ | ψ₁} ... ;Γ,Δ ⊢ {φ} eᵢ {y : τᵢ | ψᵢ} 
+—————————————————————————————————————————————-—————————————————-—–———————————————- (r.operator)
+Γ;Δ ⊢ {θ} op(e₁, ..., eᵢ) {y : τ |∃ y₁,...,yᵢ, y = [[op]](y₁, ..., yᵢ) ∧ ψ₁∧...∧ψᵢ}
+*)
+
+(*
 
 
 
