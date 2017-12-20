@@ -1,4 +1,6 @@
 Require Import ZArith.
+Require Import Reals.
+Require Import List.
 Require Coq.Program.Equality.
 
 Require Import Clerical.
@@ -11,7 +13,7 @@ Definition sem_datatype (τ : datatype) : Set :=
   | DUnit => unit
   | DBoolean => bool
   | DInteger => Z
-  | DReal => Z
+  | DReal => R
   end.
 
 Definition sem_result_type (ρ : result_type) :=
@@ -26,7 +28,7 @@ Definition context_meaning : Type := list sorted_variable * list sorted_variable
 Fixpoint sem_context_aux (Γ : list typed_variable) :  list sorted_variable :=
   match Γ with
   | nil => nil
-  | cons v Γ => cons (fst v, sem_datatype (snd v)) (sem_context_aux Γ)
+  | v :: Γ => cons (fst v, sem_datatype (snd v)) (sem_context_aux Γ)
   end.
 
 Definition sem_context (Γ : context) : context_meaning :=

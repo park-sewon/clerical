@@ -95,3 +95,25 @@ Qed.
 
 Definition origin_type (τ : result_type) : datatype := match τ with RData τ => τ end.
 
+
+Require Import Coq.Reals.Reals.
+Require Import ZArith.
+Require Import Coq.ZArith.Zorder.
+Require Import Coq.PArith.Pnat.
+Require Import Coq.NArith.Nnat.
+Open Scope R_scope.
+
+
+Fixpoint prec_embedding_nat (n:nat) : R :=
+    match n with
+    | O => 1
+    | S n => 2 * prec_embedding_nat n
+    end.
+
+Definition prec_embedding (z:Z) : R :=
+  match z with
+  | 0%Z => 1
+  | Zpos n => prec_embedding_nat (Pos.to_nat n)
+  | Zneg n => 1 */ (prec_embedding_nat (Pos.to_nat n))
+  end.
+
