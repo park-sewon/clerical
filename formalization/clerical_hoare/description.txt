@@ -1,0 +1,5 @@
+The directory is formalizing proof rules of Clerical in Hoare style.
+Original Clerical definition is modified so that it can now use
+variable names with string.
+The directories Clerical contains datatype Real however lacks
+operational semantics; a program in this Clerical version is not runnable.
