@@ -1,8 +1,110 @@
 (** Clerical typing judgments *)
 
 Require Import Clerical.
+Require Import Aux0.
 
 Open Scope clerical_scope.
+
+
+(* Type contract of primitive operators  *)
+Definition bin_type (b : binary_op) (t : three) : datatype :=
+  match b with  
+  | OpPlusInt  => match t with | one => DInteger | two => DInteger | three => DInteger end 
+  | OpMultInt  => match t with | one => DInteger | two => DInteger | three => DInteger end 
+  | OpSubInt   => match t with | one => DInteger | two => DInteger | three => DInteger end 
+  | OpPlusReal => match t with | one => DReal | two => DReal | three => DReal end 
+  | OpMultReal => match t with | one => DReal | two => DReal | three => DReal end 
+  | OpSubReal  => match t with | one => DReal | two => DReal | three => DReal end 
+  | OpDivReal  => match t with | one => DReal | two => DReal | three => DReal end 
+  | OpLtInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpEqInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpGtInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpLeInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpGeInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
+  | OpLtReal   => match t with | one => DReal | two => DReal | three => DBoolean end 
+  | OpGtReal   => match t with | one => DReal | two => DReal | three => DBoolean end 
+  | OpAnd      => match t with | one => DBoolean | two => DBoolean | three => DBoolean end
+  | OpOr       => match t with | one => DBoolean | two => DBoolean | three => DBoolean end
+  end.
+
+Fixpoint binary_op_type (op : binary_op) : option datatype -> option datatype -> option datatype :=
+  match op with
+  | OpPlusInt => fun τ₁ τ₂ => match τ₁, τ₂ with
+                              | Some DInteger, Some DInteger => Some DInteger | _, _ => None
+                              end
+  | OpMultInt => fun τ₁ τ₂ => match τ₁, τ₂ with
+                              | Some DInteger, Some DInteger => Some DInteger
+                              | _, _ => None
+                              end
+  | OpSubInt => fun τ₁ τ₂ => match τ₁, τ₂ with
+                             | Some DInteger, Some DInteger => Some DInteger
+                             | _, _ => None
+                             end
+  | OpPlusReal => fun τ₁ τ₂ => match τ₁, τ₂ with
+                               | Some DReal , Some DReal => Some DReal
+                               | _, _ => None
+                               end
+  | OpMultReal => fun τ₁ τ₂ => match τ₁, τ₂ with
+                               | Some DReal, Some DReal => Some DReal
+                               | _, _ => None
+                               end
+  | OpSubReal => fun τ₁ τ₂ => match τ₁, τ₂ with
+                              | Some DReal, Some DReal => Some DReal
+                              | _, _ => None
+                              end
+  | OpDivReal => fun τ₁ τ₂ => match τ₁, τ₂ with
+                              | Some DReal, Some DReal => Some DReal
+                              | _, _ => None
+                              end
+  | OpLtInt => fun τ₁ τ₂ => match τ₁, τ₂ with
+                            | Some DInteger, Some DInteger => Some DBoolean | _, _ => None
+                            end
+  | OpEqInt => fun τ₁ τ₂ => match τ₁, τ₂ with
+                            | Some DInteger, Some DInteger => Some DBoolean | _, _ => None
+                            end
+  | OpGtInt => fun τ₁ τ₂ => match τ₁, τ₂ with
+                            | Some DInteger, Some DInteger => Some DBoolean | _, _ => None
+                            end
+  | OpLeInt => fun τ₁ τ₂ => match τ₁, τ₂ with
+                            | Some DInteger, Some DInteger => Some DBoolean | _, _ => None
+                            end
+  | OpGeInt  => fun τ₁ τ₂ => match τ₁, τ₂ with
+                             | Some DInteger, Some DInteger => Some DBoolean | _, _ => None
+                             end
+  | OpLtReal => fun τ₁ τ₂ => match τ₁, τ₂ with
+                             | Some DReal, Some DReal => Some DBoolean | _, _ => None
+                             end
+  | OpGtReal => fun τ₁ τ₂ => match τ₁, τ₂ with
+                             | Some DReal, Some DReal => Some DBoolean | _, _ => None
+                             end
+  | OpAnd => fun τ₁ τ₂ => match τ₁, τ₂ with
+                          | Some DBoolean, Some DBoolean => Some DBoolean | _, _ => None
+                          end
+  | OpOr => fun τ₁ τ₂ => match τ₁, τ₂ with
+                         | Some DBoolean, Some DBoolean  => Some DBoolean | _, _ => None
+                         end
+  end.
+
+Fixpoint unary_op_type (op : unary_op) :option datatype -> option datatype :=
+  match op with
+  | OpNot => fun τ => match τ with | Some DBoolean => Some DBoolean | _ => None  end
+  | OpNegInt => fun τ => match τ with | Some DInteger => Some DInteger | _ => None  end
+  | OpNegReal => fun τ => match τ with | Some DReal => Some DReal | _ => None  end
+  | OpABS => fun τ => match τ with | Some DReal => Some DReal | _ => None end
+  | OpPrec => fun τ => match τ with | Some DInteger => Some DReal | _ => None end
+  end.
+
+Definition uni_type (u : unary_op) (b : bool) : datatype :=
+  match u with
+  | OpNot => match b with | true => DBoolean | false => DBoolean end 
+  | OpNegInt => match b with | true => DInteger | false => DInteger end 
+  | OpNegReal => match b with | true => DReal | false => DReal end 
+  | OpABS => match b with | true => DReal | false => DReal end
+  | OpPrec => match b with | true => DReal | false => DInteger end
+  end.
+
+
+
 
 Inductive has_type : context -> comp -> datatype -> Type :=
   | has_type_Var :

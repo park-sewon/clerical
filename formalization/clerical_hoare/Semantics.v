@@ -6,7 +6,7 @@ Require Coq.Program.Equality.
 
 Require Import Clerical.
 Require Import Typing.
-Require Import Hoare_aux.
+Require Import Aux0.
 (* temp for datatype real *)
 
 Definition sem_datatype (τ : datatype) : Set :=
@@ -27,18 +27,8 @@ Fixpoint sem_context (Γ : context) : list (sorted_variable * bool) :=
   end.
     
 (* Semantic for operators *)
-Print unary_op.
 
 (* --- Unary Operators ---*)
-Definition uni_type (u : unary_op) (b : bool) : datatype :=
-  match u with
-  | OpNot => match b with | true => DBoolean | false => DBoolean end 
-  | OpNegInt => match b with | true => DInteger | false => DInteger end 
-  | OpNegReal => match b with | true => DReal | false => DReal end 
-  | OpABS => match b with | true => DReal | false => DReal end
-  | OpPrec => match b with | true => DReal | false => DInteger end
-  end.
-
 Require Import Reals.
 Definition sem_UniOp (u : unary_op) : sem_datatype (uni_type u false) -> sem_datatype (uni_type u true).
 Proof.
@@ -59,31 +49,7 @@ Proof.
 Qed.
 
   
-
-
 (* --- Binary Operators ---*)
-Inductive three := one | two | third.
-Definition bin_type (b : binary_op) (t : three) : datatype :=
-  match b with  
-  | OpPlusInt  => match t with | one => DInteger | two => DInteger | three => DInteger end 
-  | OpMultInt  => match t with | one => DInteger | two => DInteger | three => DInteger end 
-  | OpSubInt   => match t with | one => DInteger | two => DInteger | three => DInteger end 
-  | OpPlusReal => match t with | one => DReal | two => DReal | three => DReal end 
-  | OpMultReal => match t with | one => DReal | two => DReal | three => DReal end 
-  | OpSubReal  => match t with | one => DReal | two => DReal | three => DReal end 
-  | OpDivReal  => match t with | one => DReal | two => DReal | three => DReal end 
-  | OpLtInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
-  | OpEqInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
-  | OpGtInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
-  | OpLeInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
-  | OpGeInt    => match t with | one => DInteger | two => DInteger | three => DBoolean end 
-  | OpLtReal   => match t with | one => DReal | two => DReal | three => DBoolean end 
-  | OpGtReal   => match t with | one => DReal | two => DReal | three => DBoolean end 
-  | OpAnd      => match t with | one => DBoolean | two => DBoolean | three => DBoolean end
-  | OpOr       => match t with | one => DBoolean | two => DBoolean | three => DBoolean end
-  end.
-
-
 Definition sem_BinOp (b : binary_op)
   : sem_datatype (bin_type b one) -> sem_datatype (bin_type b two) -> sem_datatype (bin_type b third).
 Proof.

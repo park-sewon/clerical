@@ -36,36 +36,6 @@ Inductive binary_op :=
 Inductive unary_op :=
   | OpNot | OpNegInt | OpNegReal | OpABS | OpPrec.
 
-Fixpoint binary_op_type (op : binary_op) : option datatype -> option datatype -> option datatype :=
-  match op with
-  | OpPlusInt => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DInteger, Some DInteger => Some DInteger | _, _ => None  end
-  | OpMultInt => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DInteger, Some DInteger => Some DInteger | _, _ => None  end
-  | OpSubInt => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DInteger, Some DInteger => Some DInteger | _, _ => None  end
-  | OpPlusReal => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DReal , Some DReal => Some DReal | _, _ => None  end
-  | OpMultReal => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DReal, Some DReal => Some DReal | _, _ => None  end
-  | OpSubReal => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DReal, Some DReal => Some DReal | _, _ => None  end
-  | OpDivReal => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DReal, Some DReal => Some DReal | _, _ => None  end
-  | OpLtInt => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DInteger, Some DInteger => Some DBoolean | _, _ => None  end
-  | OpEqInt => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DInteger, Some DInteger => Some DBoolean | _, _ => None  end
-  | OpGtInt => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DInteger, Some DInteger => Some DBoolean | _, _ => None  end
-  | OpLeInt => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DInteger, Some DInteger => Some DBoolean | _, _ => None  end
-  | OpGeInt  => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DInteger, Some DInteger => Some DBoolean | _, _ => None  end
-  | OpLtReal => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DReal, Some DReal => Some DBoolean | _, _ => None  end
-  | OpGtReal => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DReal, Some DReal => Some DBoolean | _, _ => None  end
-  | OpAnd => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DBoolean, Some DBoolean => Some DBoolean | _, _ => None  end
-  | OpOr => fun τ₁ τ₂ => match τ₁, τ₂ with | Some DBoolean, Some DBoolean  => Some DBoolean | _, _ => None  end
-  end.
-
-Fixpoint unary_op_type (op : unary_op) :option datatype -> option datatype :=
-  match op with
-  | OpNot => fun τ => match τ with | Some DBoolean => Some DBoolean | _ => None  end
-  | OpNegInt => fun τ => match τ with | Some DInteger => Some DInteger | _ => None  end
-  | OpNegReal => fun τ => match τ with | Some DReal => Some DReal | _ => None  end
-  | OpABS => fun τ => match τ with | Some DReal => Some DReal | _ => None end
-  | OpPrec => fun τ => match τ with | Some DInteger => Some DReal | _ => None end
-  end.
-
-
 
 (* Variable and Context *)
 Inductive variable := Id : string -> variable.
@@ -239,6 +209,8 @@ Notation "'FALSE'" := (Boolean false) : clerical_scope.
 
 Notation "'INT' k" := (Integer k) (at level 30) : clerical_scope.
 
+Notation "'REAL' r" := (Integer r) (at level 30) : clerical_scope.
+
 Notation "e1 '+z' e2" := (BinOp OpPlusInt e1 e2) (at level 60, right associativity) : clerical_scope.
 
 Notation "e1 '-z' e2" := (BinOp OpSubInt e1 e2) (at level 60, right associativity) : clerical_scope.
@@ -282,7 +254,7 @@ Notation "c1 ;; c2" := (Sequence c1 c2) (at level 80, right associativity) : cle
 Notation "'MCASE' b1 '==>' c1 'OR' b2 '==>' c2 'END'" := (Case b1 c1 b2 c2) (at level 89)  : clerical_scope.
 
 Notation "'WHEN' b 'THEN' c1 'ELSE' c2 'END'" :=
-  (Newvar b (Case (Var 0) c1 (UniOp OpNot (Var 0)) c2)) (at level 85) : clerical_scope.
+  (Newvar "star" (Case (Var "star") c1 (UniOp OpNot (Var "star")) c2)) (at level 85) : clerical_scope.
 
 Notation "'WHILE' b 'DO' c 'END'" := (While b c) (at level 85) : clerical_scope.
 
