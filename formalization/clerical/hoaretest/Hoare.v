@@ -1,68 +1,16 @@
 Require Import ZArith.
 Require Import String.
+Require Import Bool.
+Require Import List.
+
 Require Import Clerical. 
 Require Import Semantics.
-Require Import List.
 Require Import Typing.
-Require Import Bool.
 Require Import Hoare_aux.
+Require Import Aux0.
+
 (* proof rules by discussion between Andrej Bauer, Sewon Park and Alex Simpson
    Implementation detail discussed between Franz B. and Sewon Park *)
-
-
-(* There should be built-in functions for these... *)
-Definition eq_Set {A B : Set} (p : A = B) (a : A) : B.
-Proof.
-  rewrite<- p;  exact a.
-Qed.
-Definition eq_Type {A B : Type} (p : A = B) (a : A) : B.
-Proof.
-  rewrite<- p;  exact a.
-Qed.
-
-Lemma split_pair : forall {A B : Type} {a c : A} {b d : B}, (a,b) = (c,d) -> a = c /\ b = d.
-Proof.
-  intros.
-  trivial.
-  inversion H.
-  constructor; trivial; trivial.
-Qed.
-
-Lemma make_pair : forall A B {a c : A} {b d : B}, a = c -> b = d -> (a,b) = (c,d).
-Proof.
-  intros.
-  rewrite H; rewrite H0; trivial.
-Qed.
-
-Definition head {A : Type} (a : list A) : option A :=
-  match a with
-  | a :: A => Some a
-  | _ => None
-  end.
-Definition tail {A : Type} (a : list A) : list A :=
-  match a with
-  | a :: A => A
-  | _ => nil
-  end.
-
-  
-
-Lemma list_eq_destruct : forall {A : Type} {a b : A} {c d : list A},
-    a :: c = b :: d -> a = b /\ c = d.
-Proof.
-  intros.
-  assert (head (a::c) = head (b::d)).
-  rewrite H.
-  trivial.
-  simpl in H0.
-  inversion H0.
-  constructor; trivial.
-  destruct H0.
-  assert (tail (a::c) = tail (b::d)).
-  rewrite H; trivial.
-  simpl in H0.
-  trivial.
-Qed.
 
 Definition add_rw_ctx (Γ : context) (v : typed_variable) : context := (v, true) :: Γ.
 Definition add_ro_ctx (Γ : context) (v : typed_variable) : context := (v, false) :: Γ.
@@ -125,7 +73,7 @@ Qed.
 Definition assertion (Γ : context) (τ : datatype) := (sem_datatype τ) -> state  Γ -> Prop. 
 Definition return_is_true (Γ : context) : assertion Γ DBoolean := fun y δ => y = true.
 Definition return_is_false (Γ : context) : assertion Γ DBoolean := fun y δ => y = false.
-Definition return_is_bool (Γ : context) : assertion Γ DBoolean := fun y δ => y = true \/ y = false.
+Definition return_is_defined (Γ : context) : assertion Γ DBoolean := fun y δ => y = true \/ y = false.
 
 
 Definition pop_state {Γ : context} {w : typed_variable * bool} (γ : state (w :: Γ)) :
@@ -402,7 +350,7 @@ Axiom proof_rule_case :
  *)
 Axiom proof_rule_while :
   forall Γ e c I T F ψ,
-    correct (totally (readonly Γ) e DBoolean I (return_is_bool (readonly Γ))) ->
+    correct (totally (readonly Γ) e DBoolean I (return_is_defined (readonly Γ))) ->
     correct (totally (readonly Γ) e DBoolean T (return_is_true (readonly Γ))) ->
     (forall δ, exists! n : Z, ψ n δ) ->
     correct (totally (readonly Γ) e DBoolean (F ∨ (fun _ δ => (exists z, (ψ z δ /\ (z < 0)%Z)))) (return_is_false (readonly Γ))) ->
@@ -414,19 +362,47 @@ Axiom proof_rule_while :
         
 
 
+
+Require Import Reals.
+
 (*
 ;x : int,Γ,Δ ⊢ {φ'} e {y : Real | ψ'}    φ -> ∀ x ≥ 0. φ' | φ -> ∀ x ≥ 0, y,z (ψ ∧ ψ' → |z-y| ≤ 2⁻ˣ)
 ——————————————————-—————————————————-—–—  (r.lim)
-Γ;Δ ⊢ {φ} lim x.e {z : Real | ψ'}
+Γ;Δ ⊢ {φ} lim x.e {z : Real | ψ}
  *)
-Require Import Reals.
 Axiom proof_rule_limit :
-  forall Γ s e φ φ' ψ ψ',
+  forall Γ s e φ φ' ψ' (ψ : assertion (readonly Γ) DReal),
     correct (totally (add_ro_ctx (readonly Γ) (Id s, DInteger)) e DReal φ' ψ') ->
     φ ->> (fun y δ => forall x : Z, let v := (Id s, DInteger) in
                                     let δ' := cons_state (add_ro_ctx (readonly Γ) v) v (readonly Γ) false δ eq_refl x in φ' y δ') ->
-    forall n y z δ,
+    (forall n y z δ,
       φ tt δ -> let v := (Id s, DInteger) in
-      (ψ' y (cons_state (add_ro_ctx (readonly Γ) v) v (readonly Γ) false δ eq_refl n)) /\ ψ z δ -> (Rabs (y - z) <= ι n)%R.
+                (ψ' y (cons_state (add_ro_ctx (readonly Γ) v) v (readonly Γ) false δ eq_refl n)) /\ ψ z δ -> (Rabs (y - z) <= ι n)%R) ->
+    correct (totally Γ (Lim s e) DReal (collapse_rev φ) (collapse_rev ψ)).
+                
+                
 
+Section Examples.
+  Definition Squareroot :=
+    Lim "n" (
+          NEWVAR "a" := Real 1 IN (
+                               WHILE
+                                   MCASE
+                                   ABS ((VAR "a") -r (VAR "z") /r (VAR "a")) >r Prec (VAR "n") ==> TRUE OR ABS ((VAR "a") -r (VAR "z") /r (VAR "a")) <r Prec (VAR "n") ==> FALSE END DO
+                                                                                                                                                        SET "a" := ((VAR "a") +r (VAR "z") /r (VAR "a")) /r Real 2
+                                                                                                                                                                                                         END)).
 
+  Definition Γ₀  : context := add_rw empty_context  "z" DReal.
+  
+  Definition z_mem : ctx_mem_tv Γ₀ (Id "z", DReal).
+  Proof.
+    assert (ctx_mem_tv_fun Γ₀ (Id "z", DReal) = true).
+    compute; trivial.
+    exact (ctx_mem_tv_imp Γ₀ (Id "z", DReal) H).
+  Qed.
+
+  Definition precond : assertion Γ₀ DUnit := fun _ δ => (val_tot δ (Id "z", DReal) z_mem > 0)%R.
+  Definition postcond : assertion Γ₀ DReal := fun y δ => (val_tot δ (Id "z", DReal) z_mem = y)%R.
+
+  Lemma square_root_is_correct : correct (totally Γ₀ Squareroot DReal precond postcond).
+                          

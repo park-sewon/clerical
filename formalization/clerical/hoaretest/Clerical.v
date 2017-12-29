@@ -6,6 +6,7 @@
 Require Import ZArith.
 Require Import List.
 Require Import String.
+Require Import Bool.
 (*Require Import Delay.*)
 
 (* Datatypes *)
@@ -33,7 +34,7 @@ Inductive binary_op :=
   | OpAnd | OpOr.
 
 Inductive unary_op :=
-  | OpNot | OpNegInt | OpNegReal.
+  | OpNot | OpNegInt | OpNegReal | OpABS | OpPrec.
 
 Fixpoint binary_op_type (op : binary_op) : option datatype -> option datatype -> option datatype :=
   match op with
@@ -60,6 +61,8 @@ Fixpoint unary_op_type (op : unary_op) :option datatype -> option datatype :=
   | OpNot => fun τ => match τ with | Some DBoolean => Some DBoolean | _ => None  end
   | OpNegInt => fun τ => match τ with | Some DInteger => Some DInteger | _ => None  end
   | OpNegReal => fun τ => match τ with | Some DReal => Some DReal | _ => None  end
+  | OpABS => fun τ => match τ with | Some DReal => Some DReal | _ => None end
+  | OpPrec => fun τ => match τ with | Some DInteger => Some DReal | _ => None end
   end.
 
 
@@ -86,10 +89,47 @@ Definition eq_tv_str (v₁ : typed_variable) (s : string) : bool :=
 Definition eq_tv_tv (v₁ v₂ : typed_variable) : bool :=
   if eq_tv_tv_name v₁ v₂ then eq_type (snd v₁) (snd v₂) else false.
 
+Lemma eq_type_sym : forall τ₁ τ₂, eq_type τ₁ τ₂ = eq_type τ₂ τ₁.
+Proof.
+  intros.
+  destruct τ₁.
+  destruct τ₂.
+  trivial.
+  simpl; trivial.
+  simpl; trivial.
+  simpl; trivial.
+  simpl; trivial.
+  simpl; trivial.
+  simpl; trivial.
+Qed.
 
+Lemma eq_tv_tv_name_sym : forall v₁ v₂, eq_tv_tv_name v₁ v₂ = eq_tv_tv_name v₂ v₁.
+Proof.
+  intros.
+  unfold eq_tv_tv_name.
+  destruct v₁.
+  destruct v₂.
+  simpl.
+  destruct v.
+  destruct v0.
+  destruct (string_dec s s0), (string_dec s0 s); trivial.
+  contradict n; exact (eq_sym e).
+  contradict n; exact (eq_sym e).
+Qed.
+  
+Lemma eq_tv_tv_sym : forall v₁ v₂, eq_tv_tv v₁ v₂ = eq_tv_tv v₂ v₁.
+Proof.
+  intros.
+  unfold eq_tv_tv.
+  rewrite (eq_tv_tv_name_sym).
+  rewrite (eq_type_sym).
+  trivial.
+Qed.
+  
 Definition empty_context : context := nil.
 
 Definition add_rw (Γ : context) (s : string) (τ : datatype) := ((Id s, τ), true) ::  Γ.
+Definition add_ro (Γ : context) (s : string) (τ : datatype) := ((Id s, τ), false) ::  Γ.
 
 Inductive ctx_mem_str : context -> string -> Type :=
 | triv : forall Γ s v b, ctx_mem_str Γ s -> ctx_mem_str ((v, b) :: Γ) s
@@ -140,12 +180,44 @@ Fixpoint ctx_locate_str_fun (Γ : context) (s : string) : option (typed_variable
   | (v, b) :: Γ' => if (eq_tv_str v s) then Some (v, b) else (ctx_locate_str_fun Γ' s)
   | nil => None
   end.
-                
+
+Fixpoint ctx_mem_tv_fun (Γ : context) (v : typed_variable) : bool :=
+  match Γ with
+  | (w, _ ) :: Γ => if eq_tv_tv w v then true else ctx_mem_tv_fun Γ v
+  | nil => false
+  end.
+
+(* function results inductive definition of context membership *)
+Lemma ctx_mem_tv_imp : forall Γ s, ctx_mem_tv_fun Γ s = true -> ctx_mem_tv Γ s.
+Proof.
+  intros.
+  induction Γ.
+  contradict H.
+  compute.
+  exact diff_false_true.
+  destruct a.
+  destruct (bool_dec (eq_tv_tv t s) true).
+  rewrite (eq_tv_tv_sym) in e.
+  exact (base_t Γ s t b e).
+  simpl in H.
+  assert ((if eq_tv_tv t s then true else ctx_mem_tv_fun Γ s) = ctx_mem_tv_fun Γ s).
+  case_eq (eq_tv_tv t s).
+  intro.
+  contradict n; exact H0.
+  intro.
+  trivial.
+  rewrite H0 in H.
+  apply IHΓ in H.
+  exact (triv_t Γ s t b H).
+Qed.  
+  
+Require Import Reals.
 (* Computations *)
 Inductive comp :=
   | Var : string -> comp
   | Boolean : bool -> comp
   | Integer : Z -> comp
+  | Real : R -> comp
   | BinOp : binary_op -> comp -> comp -> comp
   | UniOp : unary_op -> comp -> comp
   | Skip : comp
@@ -153,7 +225,9 @@ Inductive comp :=
   | Case : comp -> comp -> comp -> comp -> comp
   | While : comp -> comp -> comp
   | Newvar : string -> comp -> comp -> comp
-  | Assign : string -> comp -> comp.
+  | Assign : string -> comp -> comp
+  | Lim : string -> comp -> comp.
+
 
 (* Notations for writing clerical programs. *)
 
@@ -190,6 +264,10 @@ Notation "e1 '>r' e2" := (BinOp OpGtReal e1 e2) (at level 70, right associativit
 Notation "e1 'AND' e2" := (BinOp OpAnd e1 e2) (at level 75, right associativity) : clerical_scope.
 
 Notation "e1 'Or' e2" := (BinOp OpAnd e1 e2) (at level 75, right associativity) : clerical_scope.
+
+Notation "'ABS' e" := (UniOp OpABS e) (at level 30) : clerical_scope.
+
+Notation "'Prec' e" := (UniOp OpPrec e) (at level 30) : clerical_scope.
 
 Notation "'NOT' e" := (UniOp OpNot e) (at level 30) : clerical_scope.
 

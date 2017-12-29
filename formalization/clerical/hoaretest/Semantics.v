@@ -6,7 +6,7 @@ Require Coq.Program.Equality.
 
 Require Import Clerical.
 Require Import Typing.
-
+Require Import Hoare_aux.
 (* temp for datatype real *)
 
 Definition sem_datatype (τ : datatype) : Set :=
@@ -27,6 +27,7 @@ Fixpoint sem_context (Γ : context) : list (sorted_variable * bool) :=
   end.
     
 (* Semantic for operators *)
+Print unary_op.
 
 (* --- Unary Operators ---*)
 Definition uni_type (u : unary_op) (b : bool) : datatype :=
@@ -34,9 +35,11 @@ Definition uni_type (u : unary_op) (b : bool) : datatype :=
   | OpNot => match b with | true => DBoolean | false => DBoolean end 
   | OpNegInt => match b with | true => DInteger | false => DInteger end 
   | OpNegReal => match b with | true => DReal | false => DReal end 
+  | OpABS => match b with | true => DReal | false => DReal end
+  | OpPrec => match b with | true => DReal | false => DInteger end
   end.
 
-
+Require Import Reals.
 Definition sem_UniOp (u : unary_op) : sem_datatype (uni_type u false) -> sem_datatype (uni_type u true).
 Proof.
   intros.
@@ -47,6 +50,12 @@ Proof.
   exact (-H)%Z.
   compute; compute in H.
   exact (-H)%R.
+  compute; compute in H.
+  destruct (Rlt_dec H 0).
+  exact (-H)%R.
+  exact H.
+  compute; compute in H.
+  exact (prec_embedding H).
 Qed.
 
   
@@ -220,6 +229,7 @@ Qed.
 
 (* [M X] is an ω-CPO. Here we just construct the (candidate for) sumpremum
    impredicatively. This is probably wrong. *)
+(*
 Definition sup {X : Type} (c : nat -> M X) : M X :=
   fun (v : partial X) =>
     (forall n, defined (c n)) /\ (exists n, forall m, n <= m -> c n v).
@@ -230,7 +240,7 @@ Definition is_upper {X : Type} (c : nat -> M X) (v : M X) :=
 Definition is_sup {X : Type} (c : nat -> M X) (u : M X) :=
   is_upper c u /\
   forall v, is_upper c v -> le_M u v.
-
+*)
 (* Cheap trick to get the a large inductive proof organized. Eventually
    we want to remove this. *)
 Axiom magic_axiom : forall A : Type, A. (* every type is inhabited, use with care *)

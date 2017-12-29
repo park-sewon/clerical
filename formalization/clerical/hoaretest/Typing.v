@@ -21,6 +21,10 @@ Inductive has_type : context -> comp -> datatype -> Type :=
       forall Γ k,
         has_type Γ (INT k) DInteger
 
+  | has_type_Real :
+      forall Γ r,
+        has_type Γ (Real r) DReal
+                 
   | has_type_Skip :
       forall Γ,
         has_type Γ SKIP DUnit
@@ -47,7 +51,7 @@ Inductive has_type : context -> comp -> datatype -> Type :=
 
   | has_type_newvar :
       forall Γ s ρ τ e c,
-        (ctx_mem_str_rw Γ s -> False) ->
+        (ctx_mem_str Γ s -> False) ->
         has_type (readonly Γ) e τ ->
         has_type (add_rw Γ s τ) c ρ ->
         has_type Γ (NEWVAR s := e IN c) ρ
@@ -57,6 +61,12 @@ Inductive has_type : context -> comp -> datatype -> Type :=
         ctx_mem_tv_rw Γ (Id s, τ) ->
         has_type (readonly Γ) e τ ->
         has_type Γ (SET s := e) DUnit
+
+  | has_type_lim :
+      forall Γ s e,
+        (ctx_mem_str Γ s -> False) ->
+        has_type (readonly (add_ro Γ s DInteger)) e DReal ->
+        has_type Γ (Lim s e) DReal
 .
 
 
@@ -72,6 +82,7 @@ Fixpoint judge_type (Γ : context) (c : comp) : option datatype :=
                
   | Boolean b => Some DBoolean
   | Integer z => Some DInteger
+  | Real r => Some DReal
   | BinOp op a b =>
     let τ :=  binary_op_type op ((judge_type (readonly Γ) a))
                              ((judge_type (readonly Γ) b)) in
@@ -150,6 +161,18 @@ Fixpoint judge_type (Γ : context) (c : comp) : option datatype :=
                     | _ => None
                     end)
                 else None
+    | _ => None
+    end
+
+  | Lim s e =>
+    let v := ctx_locate_str_fun Γ s in
+    match v with
+    | None => let Γ := (readonly (add_ro Γ s DInteger)) in
+              let ρ := judge_type Γ e in
+              match ρ with
+              | Some DReal => Some DReal
+              | _ => None
+              end
     | _ => None
     end
   end.
