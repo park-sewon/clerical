@@ -5,9 +5,9 @@ Require Import Bool.
 Require Coq.Program.Equality.
 
 Require Import Clerical.
+Require Import Aux_Clerical.
 Require Import Typing.
 Require Import Aux0.
-(* temp for datatype real *)
 
 Definition sem_datatype (τ : datatype) : Set :=
   match τ with
@@ -27,8 +27,6 @@ Fixpoint sem_context (Γ : context) : list (sorted_variable * bool) :=
   end.
     
 (* Semantic for operators *)
-
-(* --- Unary Operators ---*)
 Require Import Reals.
 Definition sem_UniOp (u : unary_op) : sem_datatype (uni_type u false) -> sem_datatype (uni_type u true).
 Proof.

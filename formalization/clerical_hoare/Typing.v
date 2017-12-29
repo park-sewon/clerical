@@ -1,8 +1,10 @@
-(** Clerical typing judgments *)
-
-Require Import Clerical.
+(* The file contians
+   1. Type of operands and result of primitive operators
+   2. Type judgement rules of Clerical computations 
+ *)
 Require Import Aux0.
-
+Require Import Clerical.
+Require Import Aux_Clerical.
 Open Scope clerical_scope.
 
 
@@ -283,59 +285,5 @@ Fixpoint judge_type (Γ : context) (c : comp) : option datatype :=
 Theorem Type_judgement_is_correct : forall Γ c τ, has_type Γ c τ -> judge_type Γ c = Some τ.
 Proof.
 Admitted.
-
-
-            
-
-
-
-
-
-
-
-            
-(* examples for type judgement *)
-Section type_examples.
-  
-  Definition Example1 :=
-    (
-      NEWVAR "x1" := INT 0 IN (* the accumulator is VAR 1 *)
-                         NEWVAR "x2" := VAR "x1" IN (* the counter is VAR 0 *)
-                                            WHILE (VAR "x1" <z INT 101) DO
-                                            (SET "x1" := (VAR "x2" +z VAR "x2") ;;
-                                                                                SET "x2" := VAR "x1" +z INT 1)
-                                            END ;;
-                                            VAR "x2"
-    ).
-
-
-    Definition Example2 :=
-    (
-      NEWVAR "x1" := INT 0 IN (* the accumulator is VAR 1 *)
-                         NEWVAR "x2" := VAR "x1" IN (* the counter is VAR 0 *)
-                                            WHILE (VAR "x1" <z INT 101) DO
-                                            (SET "x1" := (VAR "x2" +z VAR "x2") ;;
-                                                                                 SET "x2" := VAR "x1" +z INT 1)
-                                            END
-    ).
-
-
-    (* Ill typed *)
-    Definition Example3 :=
-    (
-      (NEWVAR "x1" := INT 0 IN (* the accumulator is VAR 1 *)
-                         NEWVAR "x2" := VAR "x1" IN (* the counter is VAR 0 *)
-                                            WHILE (VAR "x1" <z INT 101) DO
-                                            (SET "x1" := (VAR "x2" +z VAR "x2") ;;
-                                                                                 SET "x2" := VAR "x1" +z INT 1)
-                                            END +z INT 5)
-    ).
-
-
-  
-
-  Eval compute in judge_type empty_context Example3.
-
-End type_examples.
 
 

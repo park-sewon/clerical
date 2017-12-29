@@ -3,17 +3,14 @@ Require Import String.
 Require Import Bool.
 Require Import List.
 
-Require Import Clerical. 
-Require Import Semantics.
-Require Import Typing.
-Require Import Hoare_aux.
 Require Import Aux0.
+Require Import Clerical.
+Require Import Aux_Clerical.
+Require Import Typing.
+Require Import Semantics.
 
 (* proof rules by discussion between Andrej Bauer, Sewon Park and Alex Simpson
    Implementation detail discussed between Franz B. and Sewon Park *)
-
-Definition add_rw_ctx (Γ : context) (v : typed_variable) : context := (v, true) :: Γ.
-Definition add_ro_ctx (Γ : context) (v : typed_variable) : context := (v, false) :: Γ.
 
 
 (* State inductively defined via a context.
