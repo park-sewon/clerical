@@ -8,79 +8,83 @@ Require Import Bool.
 Require Import List.
 Require Import String.
 
-(* State inductively defined via a context.
-   val is a function that returns value of v within Γ *)
-Inductive state (Γ : context) : Type :=
+Definition cctx := list typed_variable.
+
+(* State defined as a dependent type of cctx. *)
+Inductive state (Γ : cctx) : Type :=
 | emty_state : Γ = nil -> state Γ
-| cons_state : forall v Δ b, state Δ -> (v, b) :: Δ = Γ -> (sem_datatype (snd v)) -> state Γ.
+| cons_state : forall v Δ, state Δ -> v :: Δ = Γ -> (sem_datatype (snd v)) -> state Γ.
+
+Fixpoint cctx_mem_fun (Γ : cctx) (v : typed_variable) : bool :=
+  match Γ with
+  | w :: Γ => if eq_tv_tv v w then true else cctx_mem_fun Γ v
+  | _ => false
+  end.
 
 (* partial state evaluation *)
-Fixpoint val {Γ : context} (γ : state Γ) (v : typed_variable) : option (sem_datatype (snd v)).
+Fixpoint val {Γ : cctx} (γ : state Γ) (v : typed_variable) : option (sem_datatype (snd v)).
 Proof.
-  pose proof (typed_mem_dec Γ v).
-  destruct H.
-  destruct γ.  
+  pose proof (bool_dec (cctx_mem_fun Γ v) true) as H; destruct H.
+  destruct γ.
   exact None.
+
   pose proof (variable_name_type_dec v0 v).
   destruct H.
   pose proof (eq_variable_has_same_type v0 v e1).
   rewrite<- H.
   exact (Some s).
+
   exact (val Δ γ v).
+
   exact None.
-Qed.
+  Qed.
 
+Check nil_cons.
 (* total state evaluation given that v is member of Γ *)
-Fixpoint val_tot {Γ : context} (γ : state Γ) (v : typed_variable) (p : ctx_mem_tv Γ v) : sem_datatype (snd v).
+Fixpoint val_tot {Γ : cctx} (γ : state Γ) (v : typed_variable) (p : cctx_mem_fun Γ v = true) : sem_datatype (snd v).
 Proof.
-  destruct p.
   destruct γ.
+  unfold cctx_mem_fun in p.
+  rewrite e in p.
+  contradict p.
+  exact diff_false_true.
 
-  (* contradiction c :: Γ = nil *)
-  symmetry in e;   pose proof (nil_cons e) as q; contradict q.
-  destruct (variable_name_type_dec v w).
-  rewrite (eq_variable_has_same_type v w e0).
-  pose proof (list_eq_destruct e).
-  destruct H.
-  pose proof (split_pair H).
-  destruct H1.
-  rewrite<- H1.
+  destruct (variable_name_type_dec v v0).
+  pose proof (eq_variable_has_same_type v v0 e0).
+  rewrite H.
   exact s.
-
-  pose proof (list_eq_destruct e).
-  destruct H.
-  rewrite H0 in γ.
-  exact (val_tot Γ γ v p).
-  destruct γ.
-  symmetry in e0;   pose proof (nil_cons e0) as q; contradict q.
-  rewrite (eq_variable_has_same_type v w e).
-  pose proof (list_eq_destruct e0).
-  destruct H.
-  pose proof (split_pair H).
-  destruct H1.
-  rewrite<- H1.
-  exact s.
+  
+  unfold cctx_mem_fun in p.
+  rewrite <- e in p.
+  rewrite e0 in p.
+  fold  cctx_mem_fun in p.  
+  exact (val_tot Δ γ v p).
 Qed.
 
-Definition assertion (Γ : context) (τ : datatype) := (sem_datatype τ) -> state  Γ -> Prop. 
-Definition return_is_true (Γ : context) : assertion Γ DBoolean := fun y δ => y = true.
-Definition return_is_false (Γ : context) : assertion Γ DBoolean := fun y δ => y = false.
-Definition return_is_defined (Γ : context) : assertion Γ DBoolean := fun y δ => y = true \/ y = false.
+Definition assertion (Γ : cctx) (τ : datatype) := (sem_datatype τ) -> state Γ -> Prop. 
+Definition return_is_true (Γ : cctx) : assertion Γ DBoolean := fun y δ => y = true.
+Definition return_is_false (Γ : cctx) : assertion Γ DBoolean := fun y δ => y = false.
+Definition return_is_defined (Γ : cctx) : assertion Γ DBoolean := fun y δ => y = true \/ y = false.
 
 
-Definition pop_state {Γ : context} {w : typed_variable * bool} (γ : state (w :: Γ)) :
-  (sem_datatype (snd (fst w))) *  state Γ.
+(* pop and push of state and assertion:
+   - pop : given a state γ which is defined over w :: Δ, return a tuple of (w, δ) where δ is a state defined over Δ
+   - push : given an assertion defined over y → Γ → prop, return an assertion over * -> y :: Γ -> prop
+ *)
+
+Definition pop_state {Γ : cctx} {w : typed_variable} (γ : state (w :: Γ)) :
+  (sem_datatype (snd  w)) *  state Γ.
 Proof.
   inversion γ.
   symmetry in H; apply nil_cons in H; contradict H.
+  
   apply list_eq_destruct in H; destruct H.
-  elim H.
-  simpl.
-  rewrite <- H1; exact (H0, X).
+  rewrite <- H1, <-  H; exact (H0, X).
 Qed.
 
-Definition merge_rw {Γ : context} {τ : datatype} (s : string) (ψ : assertion Γ τ) :
-  assertion (add_rw_ctx Γ (Id s, τ)) DUnit :=
+
+Definition push_state {Γ : cctx} {τ : datatype} (s : string) (ψ : assertion Γ τ) :
+  assertion ((Id s, τ) :: Γ) DUnit :=
   fun _ δ => let (y, γ) := pop_state δ in ψ y γ.
   
 Lemma empty_context_is : readonly nil = nil.
@@ -99,6 +103,83 @@ Proof.
 Qed.
 
 
+Fixpoint ctx_collapse (Γ : context) : cctx :=
+  match Γ with
+  | (v, _) :: Δ => v :: (ctx_collapse Δ)
+  | nil => nil
+  end.
+
+Lemma readonly_is_trivial : forall Γ, ctx_collapse (readonly Γ) = ctx_collapse Γ.
+Proof.
+  intros.
+  induction Γ.
+  simpl; trivial.
+
+  simpl.
+  destruct a.
+  simpl.
+  rewrite IHΓ.
+  trivial.
+Qed.
+
+(* return φ[y/x] which is τ -> Γ -> prop  *)
+Definition rewrite_void {Γ : cctx} (φ : assertion Γ DUnit) (v : typed_variable) (p :cctx_mem_fun Γ v = true)
+  : assertion Γ (snd v)
+:= fun y δ => val_tot δ v p = y /\ φ tt δ.
+
+Lemma t₁ : forall s τ, sem_datatype τ = sem_datatype (snd (Id s, τ)).
+Proof.
+  intros.
+  assert (τ = snd (Id s, τ)). 
+  simpl.
+  trivial.
+  rewrite<- H.
+  trivial.
+Qed.
+
+Definition rewrite_aux_1 (τ :datatype) (s :string) :   sem_datatype τ -> sem_datatype (snd (Id s, τ)).
+Proof.
+  pose proof t₁ s τ.
+  rewrite H.
+  intro.
+  exact H0.
+Qed.
+
+Definition implies {Γ : cctx} {τ : datatype} (p q : assertion Γ τ) : Type
+  := forall x γ, p x γ -> q x γ.
+
+Definition implies_2 {Γ : cctx} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ
+  := fun y γ => p y γ -> q y γ.
+
+Definition conjs {Γ : cctx} {τ : datatype} (p q : assertion Γ τ) : Type
+  := forall x γ, p x γ /\ q x γ.
+
+Definition conjs_2 {Γ : cctx} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ 
+  := fun x γ => p x γ /\ q x γ.
+
+Definition disjs {Γ : cctx} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ 
+  := fun x γ => p x γ \/ q x γ.
+
+
+Definition negate {Γ : cctx} {τ : datatype} (p : assertion Γ τ) : assertion Γ τ
+  := fun y γ => ~ p y γ.
+
+Inductive  triple (Γ : context) (c : comp) (τ : datatype)
+  := totally : assertion (ctx_collapse Γ) DUnit -> assertion (ctx_collapse Γ) τ -> triple Γ c τ.
+
+Definition correct  {Γ : context} {c : comp} {τ : datatype} (h : triple Γ c τ) := Type.
+
+
+Notation "p ->> q" := (implies  p q) (at level 80) : hoare_scope.
+Notation "p //\ q" := (conjs  p q) (at level 80) : hoare_scope.
+Notation "p → q" := (implies_2  p q) (at level 80) : hoare_scope.
+Notation "p ∧ q" := (conjs_2  p q) (at level 80) : hoare_scope.
+Notation "p ∨ q" := (disjs  p q) (at level 80) : hoare_scope.
+Notation "¬ p" := (negate  p) (at level 80) : hoare_scope.
+Notation "'ι' n" := (prec_embedding n) (at level 60) : hoare_scope.
+Open Scope hoare_scope.
+
+(*
 Fixpoint s_collapse {Γ : context} (γ : state Γ) : state (readonly Γ).
 Proof.
   inversion γ.
@@ -139,61 +220,4 @@ Definition collapse {Γ : context} {τ : datatype} (ψ : assertion Γ τ) :
 Definition collapse_rev {Γ : context} {τ : datatype} (ψ : assertion (readonly Γ) τ) :
   assertion Γ τ := fun y δ => ψ y (s_collapse δ).
 
-(* return φ[y/x] which is τ -> Γ -> prop 
-!!!! needs closer look whether this is really rewritting !!!!*)
-Definition rewrite_void {Γ : context} (φ : assertion Γ DUnit) (v : typed_variable) (p :ctx_mem_tv Γ v)
-  : assertion Γ (snd v)
-:= fun y δ => val_tot δ v p = y /\ φ tt δ.
-
-Lemma t₁ : forall s τ, sem_datatype τ = sem_datatype (snd (Id s, τ)).
-Proof.
-  intros.
-  assert (τ = snd (Id s, τ)). 
-  simpl.
-  trivial.
-  rewrite<- H.
-  trivial.
-Qed.
-
-Definition rewrite_aux_1 (τ :datatype) (s :string) :   sem_datatype τ -> sem_datatype (snd (Id s, τ)).
-Proof.
-  pose proof t₁ s τ.
-  rewrite H.
-  intro.
-  exact H0.
-Qed.
-
-Definition implies {Γ : context} {τ : datatype} (p q : assertion Γ τ) : Type
-  := forall x γ, p x γ -> q x γ.
-
-Definition implies_2 {Γ : context} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ
-  := fun y γ => p y γ -> q y γ.
-
-Definition conjs {Γ : context} {τ : datatype} (p q : assertion Γ τ) : Type
-  := forall x γ, p x γ /\ q x γ.
-
-Definition conjs_2 {Γ : context} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ 
-  := fun x γ => p x γ /\ q x γ.
-
-Definition disjs {Γ : context} {τ : datatype} (p q : assertion Γ τ) : assertion Γ τ 
-  := fun x γ => p x γ \/ q x γ.
-
-
-Definition negate {Γ : context} {τ : datatype} (p : assertion Γ τ) : assertion Γ τ
-  := fun y γ => ~ p y γ.
-
-(* hoare triple is defined for well--typed commands *)
-Inductive  triple (Γ : context) (c : comp) (τ : datatype)
-  := totally : assertion Γ DUnit -> assertion Γ τ -> triple Γ c τ.
-
-Definition correct  {Γ : context} {c : comp} {τ : datatype} (h : triple Γ c τ) := Type.
-
-
-Notation "p ->> q" := (implies  p q) (at level 80) : hoare_scope.
-Notation "p //\ q" := (conjs  p q) (at level 80) : hoare_scope.
-Notation "p → q" := (implies_2  p q) (at level 80) : hoare_scope.
-Notation "p ∧ q" := (conjs_2  p q) (at level 80) : hoare_scope.
-Notation "p ∨ q" := (disjs  p q) (at level 80) : hoare_scope.
-Notation "¬ p" := (negate  p) (at level 80) : hoare_scope.
-Notation "'ι' n" := (prec_embedding n) (at level 60) : hoare_scope.
-Open Scope hoare_scope.
+*)

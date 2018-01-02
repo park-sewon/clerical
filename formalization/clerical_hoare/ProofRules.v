@@ -43,6 +43,20 @@ Axiom proof_rule_sequence :
     correct (totally Γ c₂ τ ψ θ) ->
     correct (totally Γ (c₁ ;; c₂) τ φ θ).
 
+Lemma ctx_collapse_trivial : forall v b Γ, ctx_collapse ((v,b) :: Γ) = v  :: ctx_collapse Γ.
+Proof.
+  intros.
+  simpl.
+  trivial.
+Qed.
+
+Definition collapse_rev {Γ : context} {τ : datatype} (φ : assertion (ctx_collapse (readonly Γ)) τ) : assertion (ctx_collapse Γ) τ.
+Proof.
+  pose proof (readonly_is_trivial Γ).
+  rewrite H in φ.
+  exact φ.
+Qed.
+
 (*
 ;Γ,Δ ⊢ {φ} e {x : σ | ψ}  x:σ,Γ; Δ ⊢ {ψ} c {y : τ | θ} x ∉ Γ;Δ
 ——————————————————-—————————————————-—–———————————————- (r.newvar)
@@ -52,30 +66,60 @@ Axiom proof_rule_newvar :
   forall Γ σ φ ψ τ e c s θ,
     not_ctx_mem_tv Γ (Id s, σ) ->
     correct (totally (readonly Γ) e σ φ ψ) ->
-    correct (totally (add_rw_ctx Γ (Id s, σ)) c τ (merge_rw s (collapse_rev ψ)) θ) ->
+    correct (totally (add_rw_ctx Γ (Id s, σ)) c τ (push_state s (collapse_rev ψ)) θ) ->
     correct (totally Γ (Newvar s e c) τ (collapse_rev φ)
                      (fun y δ => exists x,
-                         let v := (Id s, σ) in
-                         let γ' := cons_state (add_rw_ctx Γ v) v Γ true δ eq_refl x in (θ y γ'))
+                         let v := (Id s, σ) in let Δ := ctx_collapse Γ in 
+                         let γ' := cons_state (v :: Δ) v Δ  δ eq_refl x in (θ y γ'))
             ).
 
-  
+Lemma ctx_mem_trans_rw : forall Γ v, ctx_mem_tv_rw Γ v -> cctx_mem_fun (ctx_collapse Γ) v = true.
+Proof.
+  intros.
+  induction X.
+  simpl.
+  case_eq (eq_tv_tv v w).
+  trivial.
+  intro.
+  exact IHX.
+  simpl; rewrite e; exact eq_refl.
+Qed.  
+
+
+Lemma ctx_mem_trans : forall Γ v, ctx_mem_tv Γ v -> cctx_mem_fun (ctx_collapse Γ) v = true.
+Proof.
+  intros.
+  induction X.
+  simpl.
+  case_eq (eq_tv_tv v w).
+  trivial.
+  intro.
+  exact IHX.
+  simpl; rewrite e; exact eq_refl.
+Qed.  
+
+Definition s_collapse {Γ : context} (δ : state (ctx_collapse Γ)) : state (ctx_collapse (readonly Γ)).
+Proof.
+  rewrite <- (readonly_is_trivial) in δ; exact δ.
+Qed.
+ 
+
+
 (*
 ;Γ,Δ ⊢ {φ} e {y : τ | ψ}
 ——————————————————-—————————————————-—–———————————————- (r.assignment)
 Γ;Δ ⊢ {φ ∧ ∀ y : τ. (ψ -> θ[y/x]} x:= e {θ}
 *)
 Axiom proof_rule_assignment :
-  forall Γ s e τ φ ψ θ (p : ctx_mem_tv Γ (Id s, τ)),
+  forall Γ s e τ φ ψ θ (p : ctx_mem_tv_rw Γ (Id s, τ)),
     correct (totally (readonly Γ) e τ φ ψ) ->
     correct (totally Γ (SET s := e) DUnit
                      ((collapse_rev φ) ∧
                       (fun _ δ => forall y,
-                       (collapse_rev ψ) y δ -> rewrite_void θ (Id s, τ) p (rewrite_aux_1 τ s y) δ    
+                       (collapse_rev ψ) y δ -> rewrite_void θ (Id s, τ) (ctx_mem_trans_rw Γ (Id s, τ) p) (rewrite_aux_1 τ s y) δ    
                       )) θ 
 
             ).
-
 
 (*
 x:τ ∈ Γ 
@@ -84,7 +128,7 @@ x:τ ∈ Γ
 *)
 Axiom proof_rule_variable :
   forall Γ x τ θ (p :  ctx_mem_tv Γ (Id x, τ)),
-    correct (totally Γ (Var x) τ θ (fun y δ => θ tt δ /\ val_tot δ (Id x, τ) p = rewrite_aux_1 τ x y)).
+    correct (totally Γ (Var x) τ θ (fun y δ => θ tt δ /\ val_tot δ (Id x, τ) (ctx_mem_trans Γ (Id x, τ) p) = rewrite_aux_1 τ x y)).
     
 
 (*
@@ -129,10 +173,10 @@ Axiom proof_rule_binop :
 
 Axiom proof_rule_case :
   forall Γ e₁ e₂ c₁ c₂ τ T₁ T₂ F₁ F₂ φ ψ,
-    correct (totally (readonly Γ) e₁ DBoolean T₁ (return_is_true (readonly Γ))) ->
-    correct (totally (readonly Γ) e₂ DBoolean T₂ (return_is_true (readonly Γ))) ->
-    correct (totally (readonly Γ) e₁ DBoolean (T₂ ∧ F₁) (return_is_false (readonly Γ))) ->
-    correct (totally (readonly Γ) e₂ DBoolean (T₁ ∧ F₂) (return_is_false (readonly Γ))) ->
+    correct (totally (readonly Γ) e₁ DBoolean T₁ (return_is_true (ctx_collapse (readonly Γ)))) ->
+    correct (totally (readonly Γ) e₂ DBoolean T₂ (return_is_true (ctx_collapse (readonly Γ)))) ->
+    correct (totally (readonly Γ) e₁ DBoolean (T₂ ∧ F₁) (return_is_false (ctx_collapse (readonly Γ)))) ->
+    correct (totally (readonly Γ) e₂ DBoolean (T₁ ∧ F₂) (return_is_false (ctx_collapse (readonly Γ)))) ->
     correct (totally Γ c₁ τ (collapse_rev (φ ∧ (¬ F₁))) ψ) ->
     correct (totally Γ c₂ τ (collapse_rev (φ ∧ (¬ F₂))) ψ) ->
     correct (totally Γ (Case e₁ c₁ e₂ c₂) τ (collapse_rev (φ ∧ (T₁ ∨ T₂))) ψ).
@@ -147,10 +191,10 @@ Axiom proof_rule_case :
  *)
 Axiom proof_rule_while :
   forall Γ e c I T F ψ,
-    correct (totally (readonly Γ) e DBoolean I (return_is_defined (readonly Γ))) ->
-    correct (totally (readonly Γ) e DBoolean T (return_is_true (readonly Γ))) ->
+    correct (totally (readonly Γ) e DBoolean I (return_is_defined (ctx_collapse (readonly Γ)))) ->
+    correct (totally (readonly Γ) e DBoolean T (return_is_true (ctx_collapse (readonly Γ)))) ->
     (forall δ, exists! n : Z, ψ n δ) ->
-    correct (totally (readonly Γ) e DBoolean (F ∨ (fun _ δ => (exists z, (ψ z δ /\ (z < 0)%Z)))) (return_is_false (readonly Γ))) ->
+    correct (totally (readonly Γ) e DBoolean (F ∨ (fun _ δ => (exists z, (ψ z δ /\ (z < 0)%Z)))) (return_is_false (ctx_collapse (readonly Γ)))) ->
     (forall z₀, correct (totally Γ c DUnit
                                 ((collapse_rev I) ∧ (¬ (collapse_rev F)) ∧ (fun _ δ => ψ z₀ (s_collapse δ)))
                                 (collapse_rev (I ∧ fun _ δ => (forall z, ψ z δ -> (z < z₀)%Z)))
@@ -168,16 +212,14 @@ Require Import Reals.
 Γ;Δ ⊢ {φ} lim x.e {z : Real | ψ}
  *)
 Axiom proof_rule_limit :
-  forall Γ s e φ φ' ψ' (ψ : assertion (readonly Γ) DReal),
+  forall Γ s e φ φ' ψ' (ψ : assertion (ctx_collapse (readonly Γ)) DReal),
     correct (totally (add_ro_ctx (readonly Γ) (Id s, DInteger)) e DReal φ' ψ') ->
-    φ ->> (fun y δ => forall x : Z, let v := (Id s, DInteger) in
-                                    let δ' := cons_state (add_ro_ctx (readonly Γ) v) v (readonly Γ) false δ eq_refl x in φ' y δ') ->
+    (φ ->> (fun y δ => forall x : Z, let v := (Id s, DInteger) in
+                                    let δ' := cons_state (ctx_collapse (add_ro_ctx (readonly Γ) v)) v (ctx_collapse (readonly Γ)) δ eq_refl x in  φ' y δ')) ->
     (forall n y z δ,
       φ tt δ -> let v := (Id s, DInteger) in
-                (ψ' y (cons_state (add_ro_ctx (readonly Γ) v) v (readonly Γ) false δ eq_refl n)) /\ ψ z δ -> (Rabs (y - z) <= ι n)%R) ->
+                (ψ' y (cons_state (ctx_collapse (add_ro_ctx (readonly Γ) v)) v (ctx_collapse (readonly Γ)) δ eq_refl n)) /\ ψ z δ -> (Rabs (y - z) <= ι n)%R) ->
     correct (totally Γ (Lim s e) DReal (collapse_rev φ) (collapse_rev ψ)).
-
-
                 
 
 Section Examples.
