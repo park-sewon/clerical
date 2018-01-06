@@ -170,6 +170,54 @@ Inductive  triple (Γ : context) (c : comp) (τ : datatype)
 Definition correct  {Γ : context} {c : comp} {τ : datatype} (h : triple Γ c τ) := Type.
 
 
+
+Lemma ctx_collapse_trivial : forall v b Γ, ctx_collapse ((v,b) :: Γ) = v  :: ctx_collapse Γ.
+Proof.
+  intros.
+  simpl.
+  trivial.
+Qed.
+
+Definition collapse_rev {Γ : context} {τ : datatype} (φ : assertion (ctx_collapse (readonly Γ)) τ) : assertion (ctx_collapse Γ) τ.
+Proof.
+  pose proof (readonly_is_trivial Γ).
+  rewrite H in φ.
+  exact φ.
+Qed.
+
+
+Lemma ctx_mem_trans_rw : forall Γ v, ctx_mem_tv_rw Γ v -> cctx_mem_fun (ctx_collapse Γ) v = true.
+Proof.
+  intros.
+  induction X.
+  simpl.
+  case_eq (eq_tv_tv v w).
+  trivial.
+  intro.
+  exact IHX.
+  simpl; rewrite e; exact eq_refl.
+Qed.  
+
+
+Lemma ctx_mem_trans : forall Γ v, ctx_mem_tv Γ v -> cctx_mem_fun (ctx_collapse Γ) v = true.
+Proof.
+  intros.
+  induction X.
+  simpl.
+  case_eq (eq_tv_tv v w).
+  trivial.
+  intro.
+  exact IHX.
+  simpl; rewrite e; exact eq_refl.
+Qed.  
+
+Definition s_collapse {Γ : context} (δ : state (ctx_collapse Γ)) : state (ctx_collapse (readonly Γ)).
+Proof.
+  rewrite <- (readonly_is_trivial) in δ; exact δ.
+Qed.
+ 
+
+
 Notation "p ->> q" := (implies  p q) (at level 80) : hoare_scope.
 Notation "p //\ q" := (conjs  p q) (at level 80) : hoare_scope.
 Notation "p → q" := (implies_2  p q) (at level 80) : hoare_scope.
@@ -178,46 +226,3 @@ Notation "p ∨ q" := (disjs  p q) (at level 80) : hoare_scope.
 Notation "¬ p" := (negate  p) (at level 80) : hoare_scope.
 Notation "'ι' n" := (prec_embedding n) (at level 60) : hoare_scope.
 Open Scope hoare_scope.
-
-(*
-Fixpoint s_collapse {Γ : context} (γ : state Γ) : state (readonly Γ).
-Proof.
-  inversion γ.
-  rewrite  H.
-  rewrite empty_context_is.
-  exact (emty_state nil eq_refl).
-
-  pose proof (readonly_cons v Δ b).
-  rewrite H in H1.
-  exact (cons_state (readonly Γ) v (readonly Δ) false (s_collapse Δ X) H1 H0).
-Qed.
-
-Fixpoint s_collapse_rev {Γ : context} (γ : state (readonly Γ)) : state Γ.
-Proof.
-  inversion γ.
-  assert (Γ = nil).
-  destruct Γ.
-  trivial.
-  simpl in H; symmetry in H; destruct p; apply nil_cons in H; contradict H.
-
-  rewrite H0.
-  exact (emty_state nil eq_refl).
-  destruct Γ.
-  simpl in H; symmetry in H; apply nil_cons in H; contradict H.
-  destruct p.
-  simpl in H.
-  apply (list_eq_destruct) in H; destruct H.
-  rewrite H1 in X.
-  pose proof (s_collapse_rev Γ X).
-  apply (split_pair) in H; destruct H.
-  rewrite <- H.
-  exact (cons_state ((v, b0) :: Γ) v Γ b0 X0  eq_refl H0).
-Qed.
-  
-Definition collapse {Γ : context} {τ : datatype} (ψ : assertion Γ τ) :
-  assertion (readonly Γ) τ := fun y (δ : state (readonly Γ)) => ψ y (s_collapse_rev δ).
-  
-Definition collapse_rev {Γ : context} {τ : datatype} (ψ : assertion (readonly Γ) τ) :
-  assertion Γ τ := fun y δ => ψ y (s_collapse δ).
-
-*)

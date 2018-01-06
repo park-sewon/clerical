@@ -81,9 +81,6 @@ Qed.
 
 
 
-
-
-
 (* The monad of computations. *)
 
 (* The partiality monad *)
@@ -193,10 +190,10 @@ Qed.
 
 (* [M X] is an ω-CPO. Here we just construct the (candidate for) sumpremum
    impredicatively. This is probably wrong. *)
-(*
+
 Definition sup {X : Type} (c : nat -> M X) : M X :=
   fun (v : partial X) =>
-    (forall n, defined (c n)) /\ (exists n, forall m, n <= m -> c n v).
+    (forall n, defined (c n)) /\ (exists n : nat, forall m, (n <= m)%nat -> c n v).
 
 Definition is_upper {X : Type} (c : nat -> M X) (v : M X) :=
   forall n, le_M (c n) v.
@@ -204,15 +201,17 @@ Definition is_upper {X : Type} (c : nat -> M X) (v : M X) :=
 Definition is_sup {X : Type} (c : nat -> M X) (u : M X) :=
   is_upper c u /\
   forall v, is_upper c v -> le_M u v.
-*)
+
 (* Cheap trick to get the a large inductive proof organized. Eventually
    we want to remove this. *)
 Axiom magic_axiom : forall A : Type, A. (* every type is inhabited, use with care *)
 Ltac unfinished := now apply magic_axiom.
 
-(* The meaning of a well-typed program in relational form. 
-Fixpoint sem_comp (Γ : context) (c : comp) (ρ : result_type) (D : has_type Γ c ρ):
+(* The meaning of a well-typed program in relational form. *) 
+Fixpoint sem_comp (Γ : context) (c : comp) (ρ : datatype) (D : has_type Γ c ρ):
   sem_context Γ -> M (sem_context_rw Γ * sem_result_type ρ).
+Proof.
+Admitted.
 
 Proof.
   intro γ.

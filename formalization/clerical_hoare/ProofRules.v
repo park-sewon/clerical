@@ -2,6 +2,8 @@ Require Import ZArith.
 Require Import String.
 Require Import Bool.
 Require Import List.
+Require Import Reals.
+
 
 Require Import Aux0.
 Require Import Clerical.
@@ -43,20 +45,6 @@ Axiom proof_rule_sequence :
     correct (totally Γ c₂ τ ψ θ) ->
     correct (totally Γ (c₁ ;; c₂) τ φ θ).
 
-Lemma ctx_collapse_trivial : forall v b Γ, ctx_collapse ((v,b) :: Γ) = v  :: ctx_collapse Γ.
-Proof.
-  intros.
-  simpl.
-  trivial.
-Qed.
-
-Definition collapse_rev {Γ : context} {τ : datatype} (φ : assertion (ctx_collapse (readonly Γ)) τ) : assertion (ctx_collapse Γ) τ.
-Proof.
-  pose proof (readonly_is_trivial Γ).
-  rewrite H in φ.
-  exact φ.
-Qed.
-
 (*
 ;Γ,Δ ⊢ {φ} e {x : σ | ψ}  x:σ,Γ; Δ ⊢ {ψ} c {y : τ | θ} x ∉ Γ;Δ
 ——————————————————-—————————————————-—–———————————————- (r.newvar)
@@ -72,37 +60,6 @@ Axiom proof_rule_newvar :
                          let v := (Id s, σ) in let Δ := ctx_collapse Γ in 
                          let γ' := cons_state (v :: Δ) v Δ  δ eq_refl x in (θ y γ'))
             ).
-
-Lemma ctx_mem_trans_rw : forall Γ v, ctx_mem_tv_rw Γ v -> cctx_mem_fun (ctx_collapse Γ) v = true.
-Proof.
-  intros.
-  induction X.
-  simpl.
-  case_eq (eq_tv_tv v w).
-  trivial.
-  intro.
-  exact IHX.
-  simpl; rewrite e; exact eq_refl.
-Qed.  
-
-
-Lemma ctx_mem_trans : forall Γ v, ctx_mem_tv Γ v -> cctx_mem_fun (ctx_collapse Γ) v = true.
-Proof.
-  intros.
-  induction X.
-  simpl.
-  case_eq (eq_tv_tv v w).
-  trivial.
-  intro.
-  exact IHX.
-  simpl; rewrite e; exact eq_refl.
-Qed.  
-
-Definition s_collapse {Γ : context} (δ : state (ctx_collapse Γ)) : state (ctx_collapse (readonly Γ)).
-Proof.
-  rewrite <- (readonly_is_trivial) in δ; exact δ.
-Qed.
- 
 
 
 (*
@@ -201,11 +158,6 @@ Axiom proof_rule_while :
     )) ->
     correct (totally Γ (While e c) DUnit (collapse_rev I) (collapse_rev (I ∧ (¬ T)))).
         
-
-
-
-Require Import Reals.
-
 (*
 ;x : int,Γ,Δ ⊢ {φ'} e {y : Real | ψ'}    φ -> ∀ x ≥ 0. φ' | φ -> ∀ x ≥ 0, y,z (ψ ∧ ψ' → |z-y| ≤ 2⁻ˣ)
 ——————————————————-—————————————————-—–—  (r.lim)
@@ -223,6 +175,26 @@ Axiom proof_rule_limit :
                 
 
 Section Examples.
+  Definition trivial_prog_1 :=
+    NEWVAR "y" := Real 1 IN
+                       (
+                         SET "x" := VAR "x" +r VAR "y"
+                       ) ;;
+                       VAR "x".
+  Definition Γ₀ : context := ((Id "x", DReal), true) :: empty_context.
+  Eval compute in (judge_type Γ₀ trivial_prog_1).
+  Definition x := (Id "x", DReal).
+  Definition y := (Id "y", DReal).
+  Definition Γ := ctx_collapse Γ₀.
+  Lemma mem_x : (cctx_mem_fun Γ x = true).
+  Proof. compute; trivial. Qed.
+  
+  Definition φ : assertion (ctx_collapse Γ₀) DUnit := fun _ δ => (val_tot δ x mem_x) > 0.
+  Definition ψ : assertion (ctx_collapse Γ₀) DReal := fun y δ => y > 1.
+  Lemma prog_1_is_correct : correct (totally Γ₀ trivial_prog_1 DReal φ ψ).
+  Proof.
+  Admitted.
+  
   Definition Squareroot :=
     Lim "n" (
           NEWVAR "a" := Real 1 IN (
@@ -232,17 +204,15 @@ Section Examples.
                                                                                                                                                       SET "a" := ((VAR "a") +r (VAR "z") /r (VAR "a")) /r Real 2
                                                                                                                                                                                                        END)).
   
-  Definition Γ₀  : context := add_rw empty_context  "z" DReal.
+  Definition Γ₁  : context := add_rw empty_context  "z" DReal.
   
-  Definition z_mem : ctx_mem_tv Γ₀ (Id "z", DReal).
+  Lemma mem_z : (cctx_mem_fun (ctx_collapse Γ₁) (Id "z", DReal)) = true.
+  Proof. compute; exact eq_refl. Qed.
+  
+  Definition precond : assertion (ctx_collapse Γ₁) DUnit := fun _ δ => (val_tot δ (Id "z", DReal) mem_z > 0)%R.
+  Definition postcond : assertion (ctx_collapse Γ₁) DReal := fun y δ => (val_tot δ (Id "z", DReal) mem_z = y)%R.
+
+  Lemma square_root_is_correct : correct (totally Γ₁ Squareroot DReal precond postcond).
   Proof.
-    assert (ctx_mem_tv_fun Γ₀ (Id "z", DReal) = true).
-    compute; trivial.
-    exact (ctx_mem_tv_imp Γ₀ (Id "z", DReal) H).
-  Qed.
-
-  Definition precond : assertion Γ₀ DUnit := fun _ δ => (val_tot δ (Id "z", DReal) z_mem > 0)%R.
-  Definition postcond : assertion Γ₀ DReal := fun y δ => (val_tot δ (Id "z", DReal) z_mem = y)%R.
-
-  Lemma square_root_is_correct : correct (totally Γ₀ Squareroot DReal precond postcond).
-                          
+    Admitted.
+End Examples.
