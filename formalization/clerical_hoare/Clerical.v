@@ -26,14 +26,6 @@ Inductive binary_op :=
   | OpLtReal | OpGtReal
   | OpAnd | OpOr.
 
-
-(* Variable and Context *)
-Inductive variable := Id : string -> variable.
-Definition typed_variable : Type := (variable * datatype).
-
-Definition context : Type := list (typed_variable * bool).
-Definition empty_context : context := nil.
-
 Require Import Reals.
 (* Computations *)
 Inductive comp :=

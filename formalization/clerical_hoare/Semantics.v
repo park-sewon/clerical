@@ -5,7 +5,6 @@ Require Import Bool.
 Require Coq.Program.Equality.
 
 Require Import Clerical.
-Require Import Aux_Clerical.
 Require Import Typing.
 Require Import Aux0.
 
@@ -17,15 +16,17 @@ Definition sem_datatype (τ : datatype) : Set :=
   | DReal => R
   end.
 
-(* sem of context should be a list of (sem) typed variables *)
-Definition sorted_variable : Type := (variable * Set).
+(* state is defined over a list of typed_variables 
+   semantic of a context ΓΔ is a tuple of states γ δ
+*)
+Inductive state (Γ : list typed_variable) : Type :=
+| emty_state : Γ = nil -> state Γ
+| cons_state : forall v Δ, state Δ -> v :: Δ = Γ -> (sem_datatype (snd v)) -> state Γ.
 
-Fixpoint sem_context (Γ : context) : list (sorted_variable * bool) :=
-  match Γ with
-  | (v, b) :: Γ' => ((fst v, (sem_datatype (snd v))), b) :: (sem_context Γ')
-  | nil => nil
-  end.
-    
+Definition sem_ctx_rw (Γ : ctx) : Type := state (ctx_rw Γ).
+Definition sem_ctx (Γ : ctx) : Type := (state (ctx_rw Γ) * state (ctx_ro Γ)).
+
+
 (* Semantic for operators *)
 Require Import Reals.
 Definition sem_UniOp (u : unary_op) : sem_datatype (uni_type u false) -> sem_datatype (uni_type u true).
@@ -208,11 +209,11 @@ Axiom magic_axiom : forall A : Type, A. (* every type is inhabited, use with car
 Ltac unfinished := now apply magic_axiom.
 
 (* The meaning of a well-typed program in relational form. *) 
-Fixpoint sem_comp (Γ : context) (c : comp) (ρ : datatype) (D : has_type Γ c ρ):
-  sem_context Γ -> M (sem_context_rw Γ * sem_result_type ρ).
+Fixpoint sem_comp (Γ : ctx) (c : comp) (ρ : datatype) (D : has_type Γ c ρ):
+  sem_ctx Γ -> M (sem_ctx_rw Γ * sem_datatype ρ).
 Proof.
 Admitted.
-
+(*
 Proof.
   intro γ.
   induction D.

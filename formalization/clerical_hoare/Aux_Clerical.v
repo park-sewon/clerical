@@ -6,8 +6,6 @@ Require Import Bool.
 Require Import Clerical.
 
 
-Definition add_rw_ctx (Γ : context) (v : typed_variable) : context := (v, true) :: Γ.
-Definition add_ro_ctx (Γ : context) (v : typed_variable) : context := (v, false) :: Γ.
 
 
 
@@ -73,7 +71,8 @@ Proof.
   trivial.
 Qed.
   
-
+Definition add_rw_ctx (Γ : context) (v : typed_variable) : context := (v, true) :: Γ.
+Definition add_ro_ctx (Γ : context) (v : typed_variable) : context := (v, false) :: Γ.
 Definition add_rw (Γ : context) (s : string) (τ : datatype) := ((Id s, τ), true) ::  Γ.
 Definition add_ro (Γ : context) (s : string) (τ : datatype) := ((Id s, τ), false) ::  Γ.
 
